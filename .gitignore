@@ -1,0 +1,15 @@
+ntloader/ntloader.vcxproj.user
+*.vcxproj
+*.obj
+*.exe
+/runner/obj
+/ntloader/obj
+/.vs
+*.sln
+/runner/bin
+*.i64
+*.dll
+*.exp
+*.lib
+*.pdb
+*.user
