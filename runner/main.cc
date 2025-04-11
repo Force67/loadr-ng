@@ -73,8 +73,6 @@ int WinMain(HINSTANCE hInstance,
     ::OutputDebugStringA(err_str);
   }
 
-  __debugbreak();
-
   NtLoaderInsertModuleToModuleList(&loader_module);
   HMODULE m = ::GetModuleHandleW(L"SkyrimSE.exe.unpacked.exe");
   m = m;
