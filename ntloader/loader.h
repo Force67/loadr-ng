@@ -43,9 +43,8 @@ struct NtLoaderModule {
   // Entry point address of the newely loaded code
   const void* entry_point_addr = nullptr;
 
+  // both must be always valid
   UNICODE_STRING* disk_path = nullptr;
-
-  // ModuleName is always valid
   UNICODE_STRING* module_name = nullptr;
 
   ULONG image_size;
@@ -76,6 +75,7 @@ struct NtLoaderConfiguration {
   // Must be set to the current name of the module we are trying to load
   // So the load can insert the module into the modulelist.
   UNICODE_STRING* module_name{nullptr};
+  UNICODE_STRING* disk_path{nullptr};
 
   // Function pointers you have to fill in
   HMODULE(__stdcall* load_library)(const char*) { nullptr };
@@ -87,5 +87,7 @@ NT_LOADER_ERR_CODE NtLoaderLoad(
     HMODULE target_module_handle,
     const NtLoaderConfiguration& config,
     NtLoaderModule&);
+
+void* NtLoaderGetBinaryNtHeader(const NtLoaderModule& mod);
 
 void NTLoaderInvokeEntryPoint(const NtLoaderModule& mod);

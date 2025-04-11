@@ -1,4 +1,4 @@
-#define DECLARE_TLS_VARS(i) static thread_local uint8_t tls[sizeof(int) * i]
+#define DECLARE_TLS_VARS(i) static thread_local unsigned char tls[sizeof(int) * i]
 
 DECLARE_TLS_VARS(8000);
 

@@ -303,6 +303,7 @@ NT_LOADER_ERR_CODE NtLoaderLoad(const uint8_t* target_binary,
     return NT_LOADER_ERR_CODE::BAD_PARAM;
 
   if (!config.module_name) return NT_LOADER_ERR_CODE::BAD_PARAM;
+  if (!config.disk_path) return NT_LOADER_ERR_CODE::BAD_PARAM;
 
   // memset(&mod, 0, sizeof(NtLoaderModule));
   // mod.disk_path = path;
@@ -319,6 +320,7 @@ NT_LOADER_ERR_CODE NtLoaderLoad(const uint8_t* target_binary,
 
   mod.image_size = binary_nt->OptionalHeader.SizeOfImage;
   mod.module_name = config.module_name; // For now.
+  mod.disk_path = config.disk_path;
 
   // these point to launcher.exe's headers (which is the memory region we
   // overwrite)
@@ -388,6 +390,12 @@ NT_LOADER_ERR_CODE NtLoaderLoad(const uint8_t* target_binary,
     return result;
 
   return NT_LOADER_ERR_CODE::OK;
+}
+
+void* NtLoaderGetBinaryNtHeader(const NtLoaderModule& mod) { 
+    const IMAGE_DOS_HEADER* dos =
+      reinterpret_cast<const IMAGE_DOS_HEADER*>(mod.binary_buffer);
+  return reinterpret_cast<void*>((uint8_t*)mod.binary_buffer + dos->e_lfanew);
 }
 
 void NTLoaderInvokeEntryPoint(const NtLoaderModule& mod) {

@@ -48,12 +48,19 @@ int WinMain(HINSTANCE hInstance,
   UNICODE_STRING module_name;
   RtlInitUnicodeString(&module_name, L"SkyrimSE.exe.unpacked.exe");
 
+  UNICODE_STRING full_path_to_module;
+  RtlInitUnicodeString(&full_path_to_module,
+                       L"C:\\Program Files "
+                       L"(x86)\\Steam\\steamapps\\common\\"
+                       L"Skyrim Special Edition\\SkyrimSE.exe.unpacked.exe");
+
   NtLoaderConfiguration config{
       .user_context = nullptr,
       .loader_hook = &MyLoaderHook,
       .load_limit = 0x10000000,
       .behaviour_flags = 0,
       .module_name = &module_name,
+      .disk_path = &full_path_to_module,
       .load_library = &::LoadLibraryA,
       .get_proc_address = &::GetProcAddress,
   };
@@ -70,11 +77,30 @@ int WinMain(HINSTANCE hInstance,
 
   NtLoaderInsertModuleToModuleList(&loader_module);
   HMODULE m = ::GetModuleHandleW(L"SkyrimSE.exe.unpacked.exe");
+  m = m;
   char buf[256];
   // format the module ptr to a string
   sprintf(buf, "Module: %p\n", m);
   ::OutputDebugStringA(buf);
+
+  void* LdrGetDllHandleByName =
+      GetProcAddress(::GetModuleHandleW(L"ntdll.dll"), "LdrGetDllHandleByName");
+  if (LdrGetDllHandleByName) {
+    // call LdrGetDllHandleByName
+    typedef NTSTATUS(WINAPI * LdrGetDllHandleByName_t)(UNICODE_STRING*,
+                                                       UNICODE_STRING*, PVOID*);
+    LdrGetDllHandleByName_t LdrGetDllHandleByNameFunc =
+        (LdrGetDllHandleByName_t)LdrGetDllHandleByName;
+
+    PVOID hMod = nullptr;
+    NTSTATUS status = LdrGetDllHandleByNameFunc(
+        loader_module.module_name, nullptr, &hMod);
+    if (!NT_SUCCESS(status)) {
+      __debugbreak();
+    }
+  }
   
   NTLoaderInvokeEntryPoint(loader_module);
+
   return 0;
 }
