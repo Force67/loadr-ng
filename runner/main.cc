@@ -70,7 +70,9 @@ int WinMain(HINSTANCE hInstance,
                                         ::GetModuleHandleW(nullptr), config, loader_module);
   const char* const err_str = NtLoaderErrCodeToString(err);
   if (err_str) {
+    ::OutputDebugStringA("Error: ");
     ::OutputDebugStringA(err_str);
+    ::OutputDebugStringA("\n");
   }
 
   NtLoaderInsertModuleToModuleList(&loader_module);
@@ -78,26 +80,17 @@ int WinMain(HINSTANCE hInstance,
   m = m;
   char buf[256];
   // format the module ptr to a string
-  sprintf(buf, "Module: %p\n", m);
+  sprintf(buf, "Module mapped at: %p\n", m);
   ::OutputDebugStringA(buf);
 
-  void* LdrGetDllHandleByName =
-      GetProcAddress(::GetModuleHandleW(L"ntdll.dll"), "LdrGetDllHandleByName");
-  if (LdrGetDllHandleByName) {
-    // call LdrGetDllHandleByName
-    typedef NTSTATUS(WINAPI * LdrGetDllHandleByName_t)(UNICODE_STRING*,
-                                                       UNICODE_STRING*, PVOID*);
-    LdrGetDllHandleByName_t LdrGetDllHandleByNameFunc =
-        (LdrGetDllHandleByName_t)LdrGetDllHandleByName;
 
-    PVOID hMod = nullptr;
-    NTSTATUS status = LdrGetDllHandleByNameFunc(
-        loader_module.module_name, nullptr, &hMod);
-    if (!NT_SUCCESS(status)) {
-      __debugbreak();
-    }
-  }
+  NtLoaderOverwriteInitialModule(&loader_module);
+
+    wchar_t widebuf[256];
+  ::GetModuleFileNameW(nullptr, widebuf, sizeof(widebuf));
+  ::OutputDebugStringW(widebuf);
   
+
   NTLoaderInvokeEntryPoint(loader_module);
 
   return 0;

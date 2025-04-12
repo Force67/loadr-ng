@@ -1,47 +1,49 @@
-#include "module_list.h"
+// Copyright (c) [Your Name or Organization]. All rights reserved.
+// Licensed under [Your License, if applicable].
 
-#include <string>
-#include <xmemory>
-#include <vector>
-#include <string>
+#ifndef MODULE_LIST_H_
+#define MODULE_LIST_H_
+
 #include <sstream>
-
+#include <string>
+#include <vector>
 
 #include "loader.h"
+#include "module_list.h"
 
 extern "C" {
-HMODULE LdrGetDllHandle(PWSTR DllPath, PULONG DllCharacteristics,
-                        PUNICODE_STRING DllName, PVOID* DllHandle);
+// Windows API and internal structure declarations.
+HMODULE LdrGetDllHandle(PWSTR dll_path, PULONG dll_characteristics,
+                        PUNICODE_STRING dll_name, PVOID* dll_handle);
 
-NTSTATUS RtlHashUnicodeString(PUNICODE_STRING String,
-                              BOOLEAN CaseInSensitive,
-                              ULONG HashAlgorithm, PULONG HashValue);
+NTSTATUS RtlHashUnicodeString(PUNICODE_STRING string, BOOLEAN case_insensitive,
+                              ULONG hash_algorithm, PULONG hash_value);
+
 #if 1
 typedef struct _RTL_BALANCED_NODE {
   union {
-    struct _RTL_BALANCED_NODE* Children[2];
+    struct _RTL_BALANCED_NODE* children[2];
     struct {
-      struct _RTL_BALANCED_NODE* Left;
-      struct _RTL_BALANCED_NODE* Right;
+      struct _RTL_BALANCED_NODE* left;
+      struct _RTL_BALANCED_NODE* right;
     };
   };
   union {
-    UCHAR Red : 1;
-    UCHAR Balance : 2;
-    ULONG_PTR ParentValue;
+    UCHAR red : 1;
+    UCHAR balance : 2;
+    ULONG_PTR parent_value;
   };
 } RTL_BALANCED_NODE, *PRTL_BALANCED_NODE;
+
 typedef struct _RTL_RB_TREE {
-  PRTL_BALANCED_NODE Root;
-  PRTL_BALANCED_NODE Min;
+  PRTL_BALANCED_NODE root;
+  PRTL_BALANCED_NODE min;
 } RTL_RB_TREE, *PRTL_RB_TREE;
 
-
-VOID RtlRbInsertNodeEx(PRTL_RB_TREE Tree,
-                       PRTL_BALANCED_NODE Parent,
-                       BOOLEAN Right,
-                       PRTL_BALANCED_NODE Node);
+VOID RtlRbInsertNodeEx(PRTL_RB_TREE tree, PRTL_BALANCED_NODE parent,
+                       BOOLEAN right, PRTL_BALANCED_NODE node);
 #endif
+
 #define LDRP_IMAGE_DLL 0x00000004
 #define LDRP_ENTRY_INSERTED 0x00008000
 #define LDRP_ENTRY_PROCESSED 0x00004000
@@ -85,498 +87,447 @@ typedef enum _LDR_DDAG_STATE {
 } LDR_DDAG_STATE;
 
 typedef struct _LDR_SERVICE_TAG_RECORD {
-  struct _LDR_SERVICE_TAG_RECORD* Next;
-  ULONG ServiceTag;
+  struct _LDR_SERVICE_TAG_RECORD* next;
+  ULONG service_tag;
 } LDR_SERVICE_TAG_RECORD, *PLDR_SERVICE_TAG_RECORD;
+
 typedef struct _LDRP_CSLIST {
-  PSINGLE_LIST_ENTRY Tail;
+  PSINGLE_LIST_ENTRY tail;
 } LDRP_CSLIST, *PLDRP_CSLIST;
+
 typedef struct _LDR_DDAG_NODE {
-  LIST_ENTRY Modules;
-  PLDR_SERVICE_TAG_RECORD ServiceTagList;
-  ULONG LoadCount;
-  ULONG LoadWhileUnloadingCount;
-  ULONG LowestLink;
+  LIST_ENTRY modules;
+  PLDR_SERVICE_TAG_RECORD service_tag_list;
+  ULONG load_count;
+  ULONG load_while_unloading_count;
+  ULONG lowest_link;
   union {
-    LDRP_CSLIST Dependencies;
-    SINGLE_LIST_ENTRY RemovalLink;
+    LDRP_CSLIST dependencies;
+    SINGLE_LIST_ENTRY removal_link;
   };
-  LDRP_CSLIST IncomingDependencies;
-  LDR_DDAG_STATE State;
-  SINGLE_LIST_ENTRY CondenseLink;
-  ULONG PreorderNumber;
+  LDRP_CSLIST incoming_dependencies;
+  LDR_DDAG_STATE state;
+  SINGLE_LIST_ENTRY condense_link;
+  ULONG preorder_number;
 } LDR_DDAG_NODE, *PLDR_DDAG_NODE;
 
-struct INTERNAL_LDR_DATA_TABLE_ENTRY {
-  LIST_ENTRY InLoadOrderLinks;
-  LIST_ENTRY InMemoryOrderLinks;
+struct InternalLdrDataTableEntry {
+  LIST_ENTRY in_load_order_links;
+  LIST_ENTRY in_memory_order_links;
   union {
-    LIST_ENTRY InInitializationOrderLinks;
-    LIST_ENTRY InProgressLinks;
+    LIST_ENTRY in_initialization_order_links;
+    LIST_ENTRY in_progress_links;
   };
-  PVOID DllBase;
-  void* EntryPoint;
-  ULONG SizeOfImage;
-  UNICODE_STRING FullDllName;
-  UNICODE_STRING BaseDllName;
+  PVOID dll_base;
+  void* entry_point;
+  ULONG size_of_image;
+  UNICODE_STRING full_dll_name;
+  UNICODE_STRING base_dll_name;
   union {
-    UCHAR FlagGroup[4];
-    ULONG Flags;
+    UCHAR flag_group[4];
+    ULONG flags;
     struct {
-      ULONG PackagedBinary : 1;
-      ULONG MarkedForRemoval : 1;
-      ULONG ImageDll : 1;
-      ULONG LoadNotificationsSent : 1;
-      ULONG TelemetryEntryProcessed : 1;
-      ULONG ProcessStaticImport : 1;
-      ULONG InLegacyLists : 1;
-      ULONG InIndexes : 1;
-      ULONG ShimDll : 1;
-      ULONG InExceptionTable : 1;
-      ULONG ReservedFlags1 : 2;
-      ULONG LoadInProgress : 1;
-      ULONG LoadConfigProcessed : 1;
-      ULONG EntryProcessed : 1;
-      ULONG ProtectDelayLoad : 1;
-      ULONG ReservedFlags3 : 2;
-      ULONG DontCallForThreads : 1;
-      ULONG ProcessAttachCalled : 1;
-      ULONG ProcessAttachFailed : 1;
-      ULONG CorDeferredValidate : 1;
-      ULONG CorImage : 1;
-      ULONG DontRelocate : 1;
-      ULONG CorILOnly : 1;
-      ULONG ChpeImage : 1;
-      ULONG ReservedFlags5 : 2;
-      ULONG Redirected : 1;
-      ULONG ReservedFlags6 : 2;
-      ULONG CompatDatabaseProcessed : 1;
+      ULONG packaged_binary : 1;
+      ULONG marked_for_removal : 1;
+      ULONG image_dll : 1;
+      ULONG load_notifications_sent : 1;
+      ULONG telemetry_entry_processed : 1;
+      ULONG process_static_import : 1;
+      ULONG in_legacy_lists : 1;
+      ULONG in_indexes : 1;
+      ULONG shim_dll : 1;
+      ULONG in_exception_table : 1;
+      ULONG reserved_flags1 : 2;
+      ULONG load_in_progress : 1;
+      ULONG load_config_processed : 1;
+      ULONG entry_processed : 1;
+      ULONG protect_delay_load : 1;
+      ULONG reserved_flags3 : 2;
+      ULONG dont_call_for_threads : 1;
+      ULONG process_attach_called : 1;
+      ULONG process_attach_failed : 1;
+      ULONG cor_deferred_validate : 1;
+      ULONG cor_image : 1;
+      ULONG dont_relocate : 1;
+      ULONG cor_il_only : 1;
+      ULONG chpe_image : 1;
+      ULONG reserved_flags5 : 2;
+      ULONG redirected : 1;
+      ULONG reserved_flags6 : 2;
+      ULONG compat_database_processed : 1;
     };
   };
-  USHORT ObsoleteLoadCount;
-  USHORT TlsIndex;
-  LIST_ENTRY HashLinks;
-  ULONG TimeDateStamp;
-  struct _ACTIVATION_CONTEXT* EntryPointActivationContext;
-  PVOID Lock;  // RtlAcquireSRWLockExclusive
-  _LDR_DDAG_NODE* DdagNode;
-  LIST_ENTRY NodeModuleLink;
-  struct _LDRP_LOAD_CONTEXT* LoadContext;
-  PVOID ParentDllBase;
-  PVOID SwitchBackContext;
-  RTL_BALANCED_NODE BaseAddressIndexNode;
-  RTL_BALANCED_NODE MappingInfoIndexNode;
-  ULONG_PTR OriginalBase;
-  LARGE_INTEGER LoadTime;
-  ULONG BaseNameHashValue;
-  LDR_DLL_LOAD_REASON LoadReason;
-  ULONG ImplicitPathOptions;
-  ULONG ReferenceCount;
-  ULONG DependentLoadFlags;
-  UCHAR SigningLevel;  // since REDSTONE2
+  USHORT obsolete_load_count;
+  USHORT tls_index;
+  LIST_ENTRY hash_links;
+  ULONG time_date_stamp;
+  struct _ACTIVATION_CONTEXT* entry_point_activation_context;
+  PVOID lock;  // RtlAcquireSRWLockExclusive.
+  _LDR_DDAG_NODE* ddag_node;
+  LIST_ENTRY node_module_link;
+  struct _LDRP_LOAD_CONTEXT* load_context;
+  PVOID parent_dll_base;
+  PVOID switch_back_context;
+  RTL_BALANCED_NODE base_address_index_node;
+  RTL_BALANCED_NODE mapping_info_index_node;
+  ULONG_PTR original_base;
+  LARGE_INTEGER load_time;
+  ULONG base_name_hash_value;
+  LDR_DLL_LOAD_REASON load_reason;
+  ULONG implicit_path_options;
+  ULONG reference_count;
+  ULONG dependent_load_flags;
+  UCHAR signing_level;  // Since REDSTONE2.
 };
 
-typedef struct _INTERNAL_PEB_LDR_DATA {
-  ULONG Length;
-  UCHAR Initialized;
-  PVOID SsHandle;
-  LIST_ENTRY InLoadOrderModuleList;
-  LIST_ENTRY InMemoryOrderModuleList;
-  LIST_ENTRY InInitializationOrderModuleList;
-  PVOID EntryInProgress;
-} INTERNAL_PEB_LDR_DATA, *PINTERNAL_PPEB_LDR_DATA;
+typedef struct _InternalPebLdrData {
+  ULONG length;
+  UCHAR initialized;
+  PVOID ss_handle;
+  LIST_ENTRY in_load_order_module_list;
+  LIST_ENTRY in_memory_order_module_list;
+  LIST_ENTRY in_initialization_order_module_list;
+  PVOID entry_in_progress;
+} InternalPebLdrData, *PInternalPebLdrData;
 
-typedef struct _INTERNAL_PEB {
-  UCHAR InheritedAddressSpace;
-  UCHAR ReadImageFileExecOptions;
-  UCHAR BeingDebugged;
-  UCHAR BitField;
-  ULONG ImageUsesLargePages : 1;
-  ULONG IsProtectedProcess : 1;
-  ULONG IsLegacyProcess : 1;
-  ULONG IsImageDynamicallyRelocated : 1;
-  ULONG SpareBits : 4;
-  PVOID Mutant;
-  PVOID ImageBaseAddress;
-  PINTERNAL_PPEB_LDR_DATA Ldr;
-  PRTL_USER_PROCESS_PARAMETERS ProcessParameters;
-  PVOID SubSystemData;
-  PVOID ProcessHeap;
-  PRTL_CRITICAL_SECTION FastPebLock;
-  PVOID AtlThunkSListPtr;
-  PVOID IFEOKey;
-  ULONG CrossProcessFlags;
-  ULONG ProcessInJob : 1;
-  ULONG ProcessInitializing : 1;
-  ULONG ReservedBits0 : 30;
+typedef struct _InternalPeb {
+  UCHAR inherited_address_space;
+  UCHAR read_image_file_exec_options;
+  UCHAR being_debugged;
+  UCHAR bit_field;
+  ULONG image_uses_large_pages : 1;
+  ULONG is_protected_process : 1;
+  ULONG is_legacy_process : 1;
+  ULONG is_image_dynamically_relocated : 1;
+  ULONG spare_bits : 4;
+  PVOID mutant;
+  PVOID image_base_address;
+  PInternalPebLdrData ldr;
+  PRTL_USER_PROCESS_PARAMETERS process_parameters;
+  PVOID sub_system_data;
+  PVOID process_heap;
+  PRTL_CRITICAL_SECTION fast_peb_lock;
+  PVOID atl_thunk_s_list_ptr;
+  PVOID IFEO_key;
+  ULONG cross_process_flags;
+  ULONG process_in_job : 1;
+  ULONG process_initializing : 1;
+  ULONG reserved_bits0 : 30;
   union {
-    PVOID KernelCallbackTable;
-    PVOID UserSharedInfoPtr;
+    PVOID kernel_callback_table;
+    PVOID user_shared_info_ptr;
   };
-  ULONG SystemReserved[1];
-  ULONG SpareUlong;
-} INTERNAL_PEB, *PINTERNAL_PEB;
-}
+  ULONG system_reserved[1];
+  ULONG spare_ulong;
+} InternalPeb, *PInternalPeb;
+}  // extern "C"
 
-UNICODE_STRING ExtractBaseName(UNICODE_STRING* FullName) {
-  UNICODE_STRING baseName = {0};
-  if (FullName->Buffer) {
-    PWSTR lastBackslash = wcsrchr(FullName->Buffer, L'\\');
-    if (lastBackslash) {
-      baseName.Buffer = lastBackslash + 1;
-      baseName.Length =
-          FullName->Length -
-          (USHORT)((lastBackslash + 1 - FullName->Buffer) * sizeof(WCHAR));
-      baseName.MaximumLength = baseName.Length + sizeof(WCHAR);
+// Extracts the base name from a full Unicode string path.
+UNICODE_STRING ExtractBaseName(UNICODE_STRING* full_name) {
+  UNICODE_STRING base_name = {0};
+  if (full_name->Buffer) {
+    PWSTR last_backslash = wcsrchr(full_name->Buffer, L'\\');
+    if (last_backslash) {
+      base_name.Buffer = last_backslash + 1;
+      base_name.Length =
+          full_name->Length -
+          (USHORT)((last_backslash + 1 - full_name->Buffer) * sizeof(WCHAR));
+      base_name.MaximumLength = base_name.Length + sizeof(WCHAR);
     } else {
-      baseName = *FullName;
+      base_name = *full_name;
     }
   }
-  return baseName;
+  return base_name;
 }
 
 #define HASH_STRING_ALGORITHM_DEFAULT 0x00000000
 
-ULONG32
-NTAPI
-LdrpHashUnicodeString(IN PUNICODE_STRING NameString) {
-  ULONG Result = 0;
+// Computes a hash for a Unicode string.
+ULONG32 NTAPI LdrpHashUnicodeString(PUNICODE_STRING name_string) {
+  ULONG result = 0;
   if (!SUCCEEDED(RtlHashUnicodeString(
-          NameString, TRUE, HASH_STRING_ALGORITHM_DEFAULT, &Result))) {
-    Result = MINLONG;
+          name_string, TRUE, HASH_STRING_ALGORITHM_DEFAULT, &result))) {
+    result = MINLONG;
   }
-  return Result;
+  return result;
 }
 
-void* FindNtdllTextSection(uint64_t* textSize) {
+// Finds the .text section of ntdll.dll.
+void* FindNtdllTextSection(uint64_t* text_size) {
   HMODULE ntdll = GetModuleHandleA("ntdll.dll");
   if (!ntdll) return nullptr;
 
-  // Parse PE headers
+  // Parse PE headers.
   PIMAGE_DOS_HEADER dos = (PIMAGE_DOS_HEADER)ntdll;
   PIMAGE_NT_HEADERS nt = (PIMAGE_NT_HEADERS)((uintptr_t)ntdll + dos->e_lfanew);
   PIMAGE_SECTION_HEADER sections = IMAGE_FIRST_SECTION(nt);
 
-  // Find .text section
+  // Find .text section.
   for (WORD i = 0; i < nt->FileHeader.NumberOfSections; i++) {
     if (memcmp(sections[i].Name, ".text", 5) == 0) {
-      *textSize = sections[i].SizeOfRawData;
+      *text_size = sections[i].SizeOfRawData;
       return (void*)((uintptr_t)ntdll + sections[i].VirtualAddress);
     }
   }
   return nullptr;
 }
 
-
-ULONG CalculateBaseNameHashValue(const UNICODE_STRING* baseName) {
+// Calculates a hash value for the base name.
+ULONG CalculateBaseNameHashValue(const UNICODE_STRING* base_name) {
   ULONG hash = 0;
-  for (USHORT i = 0; i < baseName->Length / sizeof(WCHAR); ++i) {
-    hash ^= (hash << 7) ^ baseName->Buffer[i];
+  for (USHORT i = 0; i < base_name->Length / sizeof(WCHAR); ++i) {
+    hash ^= (hash << 7) ^ base_name->Buffer[i];
   }
   return hash;
 }
 
-INTERNAL_LDR_DATA_TABLE_ENTRY* FindLdrTableEntry(PCWSTR BaseName) {
-  PINTERNAL_PEB pPeb;
-  INTERNAL_LDR_DATA_TABLE_ENTRY* pCurEntry;
-  PLIST_ENTRY pListHead, pListEntry;
+// Finds an LDR data table entry by base name.
+InternalLdrDataTableEntry* FindLdrTableEntry(PCWSTR base_name) {
+  PInternalPeb peb;
+  InternalLdrDataTableEntry* cur_entry;
+  PLIST_ENTRY list_head, list_entry;
 
-  pPeb = (PINTERNAL_PEB)__readgsqword(0x60); 
-
-  if (pPeb == NULL) {
+  peb = (PInternalPeb)__readgsqword(0x60);
+  if (peb == NULL) {
     return NULL;
   }
 
-  pListHead = &pPeb->Ldr->InLoadOrderModuleList;
-  pListEntry = pListHead->Flink;
+  list_head = &peb->ldr->in_load_order_module_list;
+  list_entry = list_head->Flink;
 
   do {
-    pCurEntry = CONTAINING_RECORD(pListEntry, INTERNAL_LDR_DATA_TABLE_ENTRY,
-                                  InLoadOrderLinks);
-    pListEntry = pListEntry->Flink;
+    cur_entry = CONTAINING_RECORD(list_entry, InternalLdrDataTableEntry,
+                                  in_load_order_links);
+    list_entry = list_entry->Flink;
 
-    // BOOL BaseName1 = WideStringCompare(BaseName,
-    // pCurEntry->BaseDllName.Buffer, (pCurEntry->BaseDllName.Length /
-    // sizeof(wchar_t)) - 4);
+    auto wide_string_length = [](PCWSTR str) { return wcslen(str); };
+    auto len = wide_string_length(base_name) * sizeof(WCHAR);
+    BOOL base_name_match =
+        ::RtlCompareMemory(base_name, cur_entry->base_dll_name.Buffer,
+                         wide_string_length(base_name) * sizeof(WCHAR)) == len;
 
-    auto WideStringLength = [](PCWSTR str) { return wcslen(str); };
-
-    auto len = WideStringLength(BaseName) * sizeof(WCHAR);    
-    BOOL BaseName2 =
-        RtlCompareMemory(BaseName, pCurEntry->BaseDllName.Buffer,
-                         WideStringLength(BaseName) * sizeof(WCHAR)) == len;
-
-    if (BaseName2 == TRUE) {
-      return pCurEntry;
+    if (base_name_match == TRUE) {
+      return cur_entry;
     }
-
-  } while (pListEntry != pListHead);
+  } while (list_entry != list_head);
 
   return NULL;
 }
 
+// Finds the hash table for LDR entries.
 PLIST_ENTRY FindHashTable() {
-  PLIST_ENTRY pList = NULL;
-  PLIST_ENTRY pHead = NULL;
-  PLIST_ENTRY pEntry = NULL;
-  INTERNAL_LDR_DATA_TABLE_ENTRY* pCurrentEntry = NULL;
+  PLIST_ENTRY list = NULL;
+  PLIST_ENTRY head = NULL;
+  PLIST_ENTRY entry = NULL;
+  InternalLdrDataTableEntry* current_entry = NULL;
 
-  PINTERNAL_PEB pPeb = (PINTERNAL_PEB)__readgsqword(0x60);
-  if (!pPeb || !pPeb->Ldr) {
-    OutputDebugStringW(L"Failed to access PEB or Ldr\n");
+  PInternalPeb peb = (PInternalPeb)__readgsqword(0x60);
+  if (!peb || !peb->ldr) {
     return NULL;
   }
 
-  pHead = &pPeb->Ldr->InInitializationOrderModuleList;
-  pEntry = pHead->Flink;
-
-  OutputDebugStringW(L"Searching for LdrpHashTable...\n");
+  head = &peb->ldr->in_initialization_order_module_list;
+  entry = head->Flink;
 
   do {
-    pCurrentEntry = CONTAINING_RECORD(pEntry, INTERNAL_LDR_DATA_TABLE_ENTRY,
-                                      InInitializationOrderLinks);
+    current_entry = CONTAINING_RECORD(entry, InternalLdrDataTableEntry,
+                                      in_initialization_order_links);
+    entry = entry->Flink;
 
-    pEntry = pEntry->Flink;
-
-    if (pCurrentEntry->HashLinks.Flink == &pCurrentEntry->HashLinks) {
+    if (current_entry->hash_links.Flink == &current_entry->hash_links) {
       continue;
     }
 
-    pList = pCurrentEntry->HashLinks.Flink;
+    list = current_entry->hash_links.Flink;
 
-    if (pList->Flink == &pCurrentEntry->HashLinks) {
-      ULONG ulRawHash = LdrpHashUnicodeString(&pCurrentEntry->BaseDllName);
-      // Correct the hash to map to one of the 32 buckets
-      // (LDR_HASH_TABLE_ENTRIES)
-      ULONG ulHash = ulRawHash & (LDR_HASH_TABLE_ENTRIES -
-                                  1);  // Equivalent to ulRawHash % 32
-      wchar_t debugMsg[128];
-      wsprintfW(
-          debugMsg,
-          L"Found potential hash link, raw hash: %lu, bucket index: %lu\n",
-          ulRawHash, ulHash);
-      OutputDebugStringW(debugMsg);
+    if (list->Flink == &current_entry->hash_links) {
+      ULONG raw_hash = LdrpHashUnicodeString(&current_entry->base_dll_name);
+      ULONG hash = raw_hash & (LDR_HASH_TABLE_ENTRIES - 1);
 
-      // Calculate the base of LdrpHashTable by subtracting the offset for the
-      // bucket
-      pList = (PLIST_ENTRY)((SIZE_T)pCurrentEntry->HashLinks.Flink -
-                            ulHash * sizeof(LIST_ENTRY));
-
-      wsprintfW(debugMsg, L"Calculated LdrpHashTable base: 0x%p\n", pList);
-      OutputDebugStringW(debugMsg);
+      list = (PLIST_ENTRY)((SIZE_T)current_entry->hash_links.Flink -
+                           hash * sizeof(LIST_ENTRY));
       break;
     }
 
-    pList = NULL;
-  } while (pHead != pEntry);
+    list = NULL;
+  } while (head != entry);
 
-  if (!pList) {
+  if (!list) {
     OutputDebugStringW(L"Failed to locate LdrpHashTable\n");
   }
-  return pList;
+  return list;
 }
 
-
-NTSTATUS InsertTailList(PLIST_ENTRY ListHead, PLIST_ENTRY Entry) {
-  // Validate input parameters
-  if (ListHead == NULL || Entry == NULL) {
+// Inserts an entry into a list tail.
+NTSTATUS InsertTailList(PLIST_ENTRY list_head, PLIST_ENTRY entry) {
+  if (list_head == NULL || entry == NULL) {
     return STATUS_INVALID_PARAMETER;
   }
 
-  // Perform the insertion with extra caution
   __try {
-    PLIST_ENTRY Blink = ListHead->Blink;
-
-    Entry->Flink = ListHead;
-    Entry->Blink = Blink;
-    Blink->Flink = Entry;
-    ListHead->Blink = Entry;
-
+    PLIST_ENTRY blink = list_head->Blink;
+    entry->Flink = list_head;
+    entry->Blink = blink;
+    blink->Flink = entry;
+    list_head->Blink = entry;
     return 0;
   } __except (EXCEPTION_EXECUTE_HANDLER) {
     return STATUS_ACCESS_VIOLATION;
   }
 }
 
-
-
 #define RVA(type, base_addr, rva) (type)((ULONG_PTR)base_addr + rva)
+
+// Finds the module base address index.
 PRTL_RB_TREE FindModuleBaseAddressIndex() {
-  SIZE_T stEnd = NULL;
-  PRTL_BALANCED_NODE pNode = NULL;
-  PRTL_RB_TREE pModBaseAddrIndex = NULL;
+  SIZE_T end = NULL;
+  PRTL_BALANCED_NODE node = NULL;
+  PRTL_RB_TREE mod_base_addr_index = NULL;
 
-  INTERNAL_LDR_DATA_TABLE_ENTRY* pLdrEntry = FindLdrTableEntry(L"ntdll.dll");
-
-  pNode = &pLdrEntry->BaseAddressIndexNode;
+  InternalLdrDataTableEntry* ldr_entry = FindLdrTableEntry(L"ntdll.dll");
+  node = &ldr_entry->base_address_index_node;
 
   do {
-    pNode = (PRTL_BALANCED_NODE)(pNode->ParentValue & (~7));
-  } while (pNode->ParentValue & (~7));
+    node = (PRTL_BALANCED_NODE)(node->parent_value & (~7));
+  } while (node->parent_value & (~7));
 
-  if (!pNode->Red) {
-    DWORD dwLen = NULL;
-    SIZE_T stBegin = NULL;
+  if (!node->red) {
+    DWORD len = NULL;
+    SIZE_T begin = NULL;
+    PIMAGE_NT_HEADERS nt_headers =
+        RVA(PIMAGE_NT_HEADERS, ldr_entry->dll_base,
+            ((PIMAGE_DOS_HEADER)ldr_entry->dll_base)->e_lfanew);
+    PIMAGE_SECTION_HEADER section = IMAGE_FIRST_SECTION(nt_headers);
 
-    PIMAGE_NT_HEADERS pNtHeaders =
-        RVA(PIMAGE_NT_HEADERS, pLdrEntry->DllBase,
-            ((PIMAGE_DOS_HEADER)pLdrEntry->DllBase)->e_lfanew);
-
-    PIMAGE_SECTION_HEADER pSection = IMAGE_FIRST_SECTION(pNtHeaders);
-
-    for (INT i = 0; i < pNtHeaders->FileHeader.NumberOfSections; i++) {
-      if (!strcmp(".data", (LPCSTR)pSection->Name)) {
-        stBegin = (SIZE_T)pLdrEntry->DllBase + pSection->VirtualAddress;
-        dwLen = pSection->Misc.VirtualSize;
-
+    for (INT i = 0; i < nt_headers->FileHeader.NumberOfSections; i++) {
+      if (!strcmp(".data", (LPCSTR)section->Name)) {
+        begin = (SIZE_T)ldr_entry->dll_base + section->VirtualAddress;
+        len = section->Misc.VirtualSize;
         break;
       }
-
-      ++pSection;
+      ++section;
     }
 
-    for (DWORD i = 0; i < dwLen - sizeof(SIZE_T); ++stBegin, ++i) {
-      SIZE_T stRet =
-          RtlCompareMemory((PVOID)stBegin, (PVOID)&pNode, sizeof(SIZE_T));
-
-      if (stRet == sizeof(SIZE_T)) {
-        stEnd = stBegin;
+    for (DWORD i = 0; i < len - sizeof(SIZE_T); ++begin, ++i) {
+      SIZE_T ret = RtlCompareMemory((PVOID)begin, (PVOID)&node, sizeof(SIZE_T));
+      if (ret == sizeof(SIZE_T)) {
+        end = begin;
         break;
       }
     }
 
-    if (stEnd == NULL) {
+    if (end == NULL) {
       return NULL;
     }
 
-    PRTL_RB_TREE pTree = (PRTL_RB_TREE)stEnd;
-
-    if (pTree && pTree->Root && pTree->Min) {
-      pModBaseAddrIndex = pTree;
+    PRTL_RB_TREE tree = (PRTL_RB_TREE)end;
+    if (tree && tree->root && tree->min) {
+      mod_base_addr_index = tree;
     }
   }
-
-  return pModBaseAddrIndex;
+  return mod_base_addr_index;
 }
 
-ULONG LdrHashEntry(UNICODE_STRING UniName, BOOL XorHash) {
-  ULONG ulRes = 0;
-  RtlHashUnicodeString(&UniName, TRUE, 0, &ulRes);
-
-  if (XorHash) {
-    ulRes &= (LDR_HASH_TABLE_ENTRIES - 1);
+// Computes a hash for a Unicode name entry.
+ULONG LdrHashEntry(UNICODE_STRING uni_name, BOOL xor_hash) {
+  ULONG result = 0;
+  RtlHashUnicodeString(&uni_name, TRUE, 0, &result);
+  if (xor_hash) {
+    result &= (LDR_HASH_TABLE_ENTRIES - 1);
   }
-
-  return ulRes;
+  return result;
 }
 
-BOOL AddBaseAddressEntry(INTERNAL_LDR_DATA_TABLE_ENTRY* pLdrEntry, PVOID lpBaseAddr) {
-  PRTL_RB_TREE pModBaseAddrIndex = FindModuleBaseAddressIndex();
-
-  if (!pModBaseAddrIndex) {
+// Adds a base address entry to the module index.
+BOOL AddBaseAddressEntry(InternalLdrDataTableEntry* ldr_entry,
+                         PVOID base_addr) {
+  PRTL_RB_TREE mod_base_addr_index = FindModuleBaseAddressIndex();
+  if (!mod_base_addr_index) {
     return FALSE;
   }
 
-  BOOL bRight = FALSE;
-  INTERNAL_LDR_DATA_TABLE_ENTRY* pLdrNode =
-      (INTERNAL_LDR_DATA_TABLE_ENTRY*)((size_t)pModBaseAddrIndex -
-                                       offsetof(INTERNAL_LDR_DATA_TABLE_ENTRY,
-                                        BaseAddressIndexNode));
+  BOOL right = FALSE;
+  InternalLdrDataTableEntry* ldr_node =
+      (InternalLdrDataTableEntry*)((size_t)mod_base_addr_index -
+                                   offsetof(InternalLdrDataTableEntry,
+                                            base_address_index_node));
 
   do {
-    if (lpBaseAddr < pLdrNode->DllBase) {
-      if (!pLdrNode->BaseAddressIndexNode.Left) {
+    if (base_addr < ldr_node->dll_base) {
+      if (!ldr_node->base_address_index_node.left) {
         break;
       }
-
-      pLdrNode =
-          (INTERNAL_LDR_DATA_TABLE_ENTRY*)((size_t)pLdrNode->BaseAddressIndexNode.Left -
-                                           offsetof(
-                                               INTERNAL_LDR_DATA_TABLE_ENTRY,
-                                            BaseAddressIndexNode));
-    }
-
-    else if (lpBaseAddr > pLdrNode->DllBase) {
-      if (!pLdrNode->BaseAddressIndexNode.Right) {
-        bRight = TRUE;
+      ldr_node =
+          (InternalLdrDataTableEntry*)((size_t)ldr_node->base_address_index_node
+                                           .left -
+                                       offsetof(InternalLdrDataTableEntry,
+                                                base_address_index_node));
+    } else if (base_addr > ldr_node->dll_base) {
+      if (!ldr_node->base_address_index_node.right) {
+        right = TRUE;
         break;
       }
-
-      pLdrNode =
-          (INTERNAL_LDR_DATA_TABLE_ENTRY*)((size_t)
-                                       pLdrNode->BaseAddressIndexNode.Right -
-                                           offsetof(
-                                               INTERNAL_LDR_DATA_TABLE_ENTRY,
-                                            BaseAddressIndexNode));
-    }
-
-    else {
-      pLdrNode->DdagNode->LoadCount++;
+      ldr_node =
+          (InternalLdrDataTableEntry*)((size_t)ldr_node->base_address_index_node
+                                           .right -
+                                       offsetof(InternalLdrDataTableEntry,
+                                                base_address_index_node));
+    } else {
+      ldr_node->ddag_node->load_count++;
     }
   } while (TRUE);
 
-  RtlRbInsertNodeEx(pModBaseAddrIndex, &pLdrNode->BaseAddressIndexNode, bRight,
-                     &pLdrEntry->BaseAddressIndexNode);
-
+  RtlRbInsertNodeEx(mod_base_addr_index, &ldr_node->base_address_index_node,
+                    right, &ldr_entry->base_address_index_node);
   return TRUE;
 }
 
-BOOL AddHashTableEntry(INTERNAL_LDR_DATA_TABLE_ENTRY* pLdrEntry) {
-  PINTERNAL_PEB pPeb;
-  PINTERNAL_PPEB_LDR_DATA pPebData;
-  PLIST_ENTRY LdrpHashTable;
+// Adds an entry to the hash table and PEB lists.
+BOOL AddHashTableEntry(InternalLdrDataTableEntry* ldr_entry) {
+  PInternalPeb peb;
+  PLIST_ENTRY ldrp_hash_table;
 
-  pPeb = (PINTERNAL_PEB)__readgsqword(0x60);
+  peb = (PInternalPeb)__readgsqword(0x60);
+  RtlInitializeListEntry(&ldr_entry->hash_links);
 
-  RtlInitializeListEntry(&pLdrEntry->HashLinks);
-
-  LdrpHashTable = FindHashTable();
-  if (!LdrpHashTable) {
-    OutputDebugStringW(L"Failed to find LdrpHashTable\n");
+  ldrp_hash_table = FindHashTable();
+  if (!ldrp_hash_table) {
     return FALSE;
   }
 
-  // Insert into hash table
-  ULONG ulHash = LdrHashEntry(pLdrEntry->BaseDllName, TRUE);
-  OutputDebugStringW(L"Inserting into hash table at index: ");
-  wchar_t hashIdx[16];
-  wsprintfW(hashIdx, L"%d\n", ulHash);
-  OutputDebugStringW(hashIdx);
+  const ULONG hash = LdrHashEntry(ldr_entry->base_dll_name, TRUE);
 
-  InsertTailList(&LdrpHashTable[ulHash], &pLdrEntry->HashLinks);
-
-  // Insert into other lists
-  InsertTailList(&pPeb->Ldr->InLoadOrderModuleList,
-                 &pLdrEntry->InLoadOrderLinks);
-  InsertTailList(&pPeb->Ldr->InMemoryOrderModuleList,
-                 &pLdrEntry->InMemoryOrderLinks);
-  InsertTailList(&pPeb->Ldr->InInitializationOrderModuleList,
-                 &pLdrEntry->InInitializationOrderLinks);
-
+  InsertTailList(&ldrp_hash_table[hash], &ldr_entry->hash_links);
+  InsertTailList(&peb->ldr->in_load_order_module_list,
+                 &ldr_entry->in_load_order_links);
+  InsertTailList(&peb->ldr->in_memory_order_module_list,
+                 &ldr_entry->in_memory_order_links);
+  InsertTailList(&peb->ldr->in_initialization_order_module_list,
+                 &ldr_entry->in_initialization_order_links);
   return TRUE;
 }
 
+// Enumerates the PEB module list.
+template <typename TFn>
+void EnumPebModuleList(TFn&& fn) {
+  InternalPeb* peb;
+  peb = (InternalPeb*)__readgsqword(0x60);
+  PLIST_ENTRY list_head = &peb->ldr->in_load_order_module_list;
+  PLIST_ENTRY list_entry = list_head->Flink;
 
-void EnumPebModuleList() { _INTERNAL_PEB* pPeb;
-  pPeb = (_INTERNAL_PEB*)__readgsqword(0x60);
-  PLIST_ENTRY pListHead = &pPeb->Ldr->InLoadOrderModuleList;
-  PLIST_ENTRY pListEntry = pListHead->Flink;
   do {
-    INTERNAL_LDR_DATA_TABLE_ENTRY* pCurEntry = CONTAINING_RECORD(
-        pListEntry, INTERNAL_LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
-    pListEntry = pListEntry->Flink;
-    // Print the module name
-    wchar_t moduleName[256];
-  //  wsprintfW(moduleName, L"%s", &pCurEntry->BaseDllName);
-    OutputDebugStringW(pCurEntry->BaseDllName.Buffer);
-  } while (pListEntry != pListHead);
+    InternalLdrDataTableEntry* cur_entry = CONTAINING_RECORD(
+        list_entry, InternalLdrDataTableEntry, in_load_order_links);
+    list_entry = list_entry->Flink;
+    fn(list_entry);
+  } while (list_entry != list_head);
 }
 
-
-void EnumLdrTableEntries() {
-  auto LdrpHashTable = FindHashTable();
-  if (!LdrpHashTable) {
-    OutputDebugStringW(L"Failed to find LdrpHashTable for enumeration\n");
+// Enumerates LDR table entries from the hash table.
+template <typename TFn>
+void EnumLdrTableEntries(TFn &&fn) {
+  auto ldrp_hash_table = FindHashTable();
+  if (!ldrp_hash_table) {
     return;
   }
 
@@ -584,116 +535,115 @@ void EnumLdrTableEntries() {
 
   for (int i = 0; i < LDR_HASH_TABLE_ENTRIES; ++i) {
     __try {
-      PLIST_ENTRY pListEntry = LdrpHashTable[i].Flink;
-      if (!pListEntry) {
+      PLIST_ENTRY list_entry = ldrp_hash_table[i].Flink;
+      if (!list_entry) {
         continue;
       }
-      if (pListEntry != &LdrpHashTable[i]) {
-        wchar_t idxMsg[64];
-        wsprintfW(idxMsg, L"Bucket %d:\n", i);
-        OutputDebugStringW(idxMsg);
+      if (list_entry != &ldrp_hash_table[i]) {
+        wchar_t idx_msg[64];
+        wsprintfW(idx_msg, L"Bucket %d:\n", i);
+        OutputDebugStringW(idx_msg);
       }
-      while (pListEntry != &LdrpHashTable[i]) {
-        INTERNAL_LDR_DATA_TABLE_ENTRY* pCurEntry = CONTAINING_RECORD(
-            pListEntry, INTERNAL_LDR_DATA_TABLE_ENTRY, HashLinks);
-        pListEntry = pListEntry->Flink;
-        if (pCurEntry->BaseDllName.Buffer) {
-          OutputDebugStringW(pCurEntry->BaseDllName.Buffer);
+      while (list_entry != &ldrp_hash_table[i]) {
+        InternalLdrDataTableEntry* cur_entry = CONTAINING_RECORD(
+            list_entry, InternalLdrDataTableEntry, hash_links);
+        list_entry = list_entry->Flink;
+        if (!fn(cur_entry)) return;
+        if (cur_entry->base_dll_name.Buffer) {
+          OutputDebugStringW(cur_entry->base_dll_name.Buffer);
           OutputDebugStringW(L"\n");
         }
       }
     } __except (EXCEPTION_EXECUTE_HANDLER) {
-      wchar_t errorMsg[64];
-      wsprintfW(errorMsg, L"Access violation at bucket %d\n", i);
-      OutputDebugStringW(errorMsg);
+      continue;
     }
   }
 }
-// https://github.com/bats3c/DarkLoadLibrary/blob/master/DarkLoadLibrary/src/pebutils.c
-// https://www.mdsec.co.uk/2021/06/bypassing-image-load-kernel-callbacks/
-// https://github.com/bb107/MemoryModulePP/blob/588b48ebc728bb24438d2db71cf2747454593bdb/MemoryModule/Initialize.cpp#L12
+
+// Inserts a module into the LDR module list.
 void NtLoaderInsertModuleToModuleList(const NtLoaderModule* module) {
-  PIMAGE_NT_HEADERS pNtHeaders;
-  UNICODE_STRING FullDllName, BaseDllName;
-  INTERNAL_LDR_DATA_TABLE_ENTRY* pLdrEntry = NULL;
+  UNICODE_STRING full_dll_name, base_dll_name;
+  InternalLdrDataTableEntry* ldr_entry = NULL;
 
-  pNtHeaders = (PIMAGE_NT_HEADERS)NtLoaderGetBinaryNtHeader(*module);
+  PIMAGE_NT_HEADERS nt_headers =
+      (PIMAGE_NT_HEADERS)NtLoaderGetBinaryNtHeader(*module);
+  RtlInitUnicodeString(&full_dll_name, module->disk_path->Buffer);
+  RtlInitUnicodeString(&base_dll_name, module->module_name->Buffer);
 
-  // convert the names to unicode
-  RtlInitUnicodeString(&FullDllName, module->disk_path->Buffer);
-  RtlInitUnicodeString(&BaseDllName, module->module_name->Buffer);
+  ldr_entry = (InternalLdrDataTableEntry*)HeapAlloc(
+      ::GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(InternalLdrDataTableEntry));
 
-  // link the entry to the PEB
-  pLdrEntry = (INTERNAL_LDR_DATA_TABLE_ENTRY*)HeapAlloc(
-      ::GetProcessHeap(), HEAP_ZERO_MEMORY,
-      sizeof(INTERNAL_LDR_DATA_TABLE_ENTRY));
-
-  if (!pLdrEntry) {
-    OutputDebugStringW(L"Failed to allocate memory for LDR entry\n");
+  if (!ldr_entry) {
     return;
   }
 
-  // start setting the values in the entry
-  NtQuerySystemTime(&pLdrEntry->LoadTime);
-  pLdrEntry->ReferenceCount = 1;
-  pLdrEntry->LoadReason = LoadReasonDynamicLoad;
-  pLdrEntry->OriginalBase = pNtHeaders->OptionalHeader.ImageBase;
-  pLdrEntry->BaseNameHashValue = LdrHashEntry(BaseDllName, FALSE);
+  NtQuerySystemTime(&ldr_entry->load_time);
+  ldr_entry->reference_count = 1;
+  ldr_entry->load_reason = LoadReasonDynamicLoad;
+  ldr_entry->original_base = nt_headers->OptionalHeader.ImageBase;
+  ldr_entry->base_name_hash_value = LdrHashEntry(base_dll_name, FALSE);
 
-  //PVOID baseAddr = module->module_handle;
-  // bogus:
-  PVOID baseAddr = (PVOID)NtLoaderGetBinaryNtHeader(*module);
-
-  // correctly add the base address to the entry
-  if (!AddBaseAddressEntry(pLdrEntry, baseAddr)) {
-    OutputDebugStringW(L"Failed to add base address entry\n");
-    // Handle cleanup if necessary
-    HeapFree(GetProcessHeap(), 0, pLdrEntry->DdagNode);
-    HeapFree(GetProcessHeap(), 0, pLdrEntry);
+  PVOID base_addr = module->module_handle;
+  if (!AddBaseAddressEntry(ldr_entry, base_addr)) {
+    HeapFree(GetProcessHeap(), 0, ldr_entry->ddag_node);
+    HeapFree(GetProcessHeap(), 0, ldr_entry);
     return;
   }
 
-  // and the rest
-  pLdrEntry->ImageDll = TRUE;
-  pLdrEntry->LoadNotificationsSent = TRUE;  // lol
-  pLdrEntry->EntryProcessed = TRUE;
-  pLdrEntry->InLegacyLists = TRUE;
-  pLdrEntry->InIndexes = TRUE;
-  pLdrEntry->ProcessAttachCalled = TRUE;
-  pLdrEntry->InExceptionTable = FALSE;
-  pLdrEntry->DllBase = baseAddr;
-  pLdrEntry->SizeOfImage = pNtHeaders->OptionalHeader.SizeOfImage;
-  pLdrEntry->TimeDateStamp = pNtHeaders->FileHeader.TimeDateStamp;
-  pLdrEntry->BaseDllName = BaseDllName;
-  pLdrEntry->FullDllName = FullDllName;
-  pLdrEntry->ObsoleteLoadCount = 1;
-  pLdrEntry->Flags = LDRP_IMAGE_DLL | LDRP_ENTRY_INSERTED |
+  ldr_entry->image_dll = TRUE;
+  ldr_entry->load_notifications_sent = TRUE;
+  ldr_entry->entry_processed = TRUE;
+  ldr_entry->in_legacy_lists = TRUE;
+  ldr_entry->in_indexes = TRUE;
+  ldr_entry->process_attach_called = TRUE;
+  ldr_entry->in_exception_table = FALSE;
+  ldr_entry->dll_base = base_addr;
+  ldr_entry->size_of_image = nt_headers->OptionalHeader.SizeOfImage;
+  ldr_entry->time_date_stamp = nt_headers->FileHeader.TimeDateStamp;
+  ldr_entry->base_dll_name = base_dll_name;
+  ldr_entry->full_dll_name = full_dll_name;
+  ldr_entry->obsolete_load_count = 1;
+  ldr_entry->flags = LDRP_IMAGE_DLL | LDRP_ENTRY_INSERTED |
                      LDRP_ENTRY_PROCESSED | LDRP_PROCESS_ATTACH_CALLED;
 
-  // set the correct values in the Ddag node struct
-  pLdrEntry->DdagNode = (PLDR_DDAG_NODE)::HeapAlloc(
+  ldr_entry->ddag_node = (PLDR_DDAG_NODE)::HeapAlloc(
       ::GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(LDR_DDAG_NODE));
 
-  if (!pLdrEntry->DdagNode) {
+  if (!ldr_entry->ddag_node) {
     return;
   }
 
-  pLdrEntry->NodeModuleLink.Flink = &pLdrEntry->DdagNode->Modules;
-  pLdrEntry->NodeModuleLink.Blink = &pLdrEntry->DdagNode->Modules;
-  pLdrEntry->DdagNode->Modules.Flink = &pLdrEntry->NodeModuleLink;
-  pLdrEntry->DdagNode->Modules.Blink = &pLdrEntry->NodeModuleLink;
-  pLdrEntry->DdagNode->State = LdrModulesReadyToRun;
-  pLdrEntry->DdagNode->LoadCount = 1;
+  ldr_entry->node_module_link.Flink = &ldr_entry->ddag_node->modules;
+  ldr_entry->node_module_link.Blink = &ldr_entry->ddag_node->modules;
+  ldr_entry->ddag_node->modules.Flink = &ldr_entry->node_module_link;
+  ldr_entry->ddag_node->modules.Blink = &ldr_entry->node_module_link;
+  ldr_entry->ddag_node->state = LdrModulesReadyToRun;
+  ldr_entry->ddag_node->load_count = 1;
 
-  // add the hash to the LdrpHashTable
-  AddHashTableEntry(pLdrEntry);
+  AddHashTableEntry(ldr_entry);
+  ldr_entry->entry_point = RVA(PVOID, module->module_handle,
+                               nt_headers->OptionalHeader.AddressOfEntryPoint);
 
-  // set the entry point
-  pLdrEntry->EntryPoint = RVA(PVOID, module->module_handle,
-                              pNtHeaders->OptionalHeader.AddressOfEntryPoint);
-
-  EnumPebModuleList();
-  OutputDebugStringW(L"Inserted module to the list\n");
-  EnumLdrTableEntries();
-
+ // EnumPebModuleList();
+ // OutputDebugStringW(L"Inserted module to the list\n");
+ // EnumLdrTableEntries();
 }
+
+void NtLoaderOverwriteInitialModule(const NtLoaderModule* module) {
+  EnumLdrTableEntries([&](InternalLdrDataTableEntry* entry) {
+    if (entry->dll_base == module->module_handle) {
+      // Overwrite the entry with the new module information.
+      entry->full_dll_name.Buffer = module->disk_path->Buffer;
+      entry->full_dll_name.Length = module->disk_path->Length;
+      entry->full_dll_name.MaximumLength = module->disk_path->MaximumLength;
+
+      entry->base_dll_name.Buffer = module->module_name->Buffer;
+      entry->base_dll_name.Length = module->module_name->Length;
+      entry->base_dll_name.MaximumLength = module->module_name->MaximumLength;
+
+      return TRUE;
+    }
+  });
+}
+
+#endif  // MODULE_LIST_H_
