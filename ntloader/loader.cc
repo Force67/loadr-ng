@@ -71,12 +71,16 @@ NT_LOADER_ERR_CODE LoadSections(NtLoaderModule& mod,
     if (section->SizeOfRawData > 0) {
       uint32_t sizeOfData =
           mmin(section->SizeOfRawData, section->Misc.VirtualSize);
-
       ::memcpy(targetAddress, sourceAddress, sizeOfData);
+
       InvokeHook(mod, config, NT_LOADER_STAGE::LOAD_SECTION);
 
+      DWORD protection_type = section->Characteristics & IMAGE_SCN_MEM_EXECUTE
+                                  ? PAGE_EXECUTE_READ
+                                  : PAGE_READWRITE;
       DWORD oldProtect;
-      ::VirtualProtect(targetAddress, sizeOfData, PAGE_EXECUTE_READWRITE,
+      ::VirtualProtect(targetAddress, section->Misc.VirtualSize,
+                       protection_type,
                        &oldProtect);
     }
 
@@ -383,7 +387,8 @@ NT_LOADER_ERR_CODE NtLoaderLoad(const uint8_t* target_binary,
   }
 
   // Reprotect the NT headers
-  VirtualProtect((LPVOID)target_nt, 0x1000, oldProtect, &oldProtect);
+  // TODO fix this; it will crash games otherwise
+  //VirtualProtect((LPVOID)target_nt, 0x1000, oldProtect, &oldProtect);
 
   result = CallTLSInitalizisers(mod, target_module_handle, target_nt);
   if (result != NT_LOADER_ERR_CODE::OK)
@@ -401,6 +406,6 @@ void* NtLoaderGetBinaryNtHeader(const NtLoaderModule& mod) {
 void NTLoaderInvokeEntryPoint(const NtLoaderModule& mod) {
   if (mod.entry_point_addr) {
     void (*entry_point)() = (void (*)())mod.entry_point_addr;
-    entry_point();
+    return entry_point();
   }
 }

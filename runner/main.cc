@@ -86,10 +86,15 @@ int WinMain(HINSTANCE hInstance,
 
   NtLoaderOverwriteInitialModule(&loader_module);
 
-    wchar_t widebuf[256];
+   wchar_t widebuf[256];
   ::GetModuleFileNameW(nullptr, widebuf, sizeof(widebuf));
   ::OutputDebugStringW(widebuf);
-  
+  ::OutputDebugStringW(L"\n");
+
+  wchar_t cwd[256];
+  ::GetCurrentDirectoryW(sizeof(cwd) / sizeof(wchar_t), cwd);
+  ::OutputDebugStringW(cwd);
+  ::OutputDebugStringW(L"\n");  
 
   NTLoaderInvokeEntryPoint(loader_module);
 

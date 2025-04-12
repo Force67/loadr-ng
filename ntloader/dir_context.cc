@@ -4,11 +4,10 @@
 #include <string>
 
 extern "C" {
-__declspec(dllimport) __kernel_entry NTSYSCALLAPI NTSTATUS
-    LdrSetDefaultDllDirectories(ULONG DirectoryFlags);
+NTSTATUS LdrSetDefaultDllDirectories(ULONG DirectoryFlags);
+NTSTATUS LdrAddDllDirectory(UNICODE_STRING* Directory, DLL_DIRECTORY_COOKIE*);
 
-__declspec(dllimport) __kernel_entry NTSYSCALLAPI NTSTATUS
-    LdrAddDllDirectory(UNICODE_STRING* Directory, DLL_DIRECTORY_COOKIE*);
+NTSTATUS RtlSetCurrentDirectory_U(PUNICODE_STRING name);
 }
 
 void InstallDirContext(
@@ -20,6 +19,7 @@ void InstallDirContext(
   DLL_DIRECTORY_COOKIE cookie;
   LdrAddDllDirectory(const_cast<UNICODE_STRING*>(&cwd), &cookie);
   LdrAddDllDirectory(const_cast<UNICODE_STRING*>(&app_path), &cookie);
+  RtlSetCurrentDirectory_U(const_cast<UNICODE_STRING*>(&cwd));
 
   std::wstring pathBuf;
   pathBuf.resize(32768);

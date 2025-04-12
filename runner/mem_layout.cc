@@ -12,7 +12,7 @@
 #include <Windows.h>
 #include <cstdint>
 
-constexpr uintptr_t exeLoadSz = 0x7000000;
+constexpr uintptr_t exeLoadSz = 0x40000000;
 
 #pragma comment(linker, "/merge:.data=.cld")
 #pragma comment(linker, "/merge:.rdata=.clr")
