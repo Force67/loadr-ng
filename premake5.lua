@@ -31,7 +31,7 @@ filter("language:C++")
 filter("system:windows")
     defines("OS_WIN")
     
-workspace("NtLoaderNG")
+workspace("Loadr")
     configurations({
       "Debug",
       "Release",
@@ -42,4 +42,4 @@ workspace("NtLoaderNG")
     }
     defines("NOMINMAX")
     include("./ntloader")
-    include("./runner")
+    include("./samples")

@@ -1,6 +1,8 @@
 
 #include "loader.h"
 
+namespace loadr {
+
 namespace {
 const char* const NtLoaderErrStringArray[] = {
     "OK",                                  // OK
@@ -80,8 +82,7 @@ NT_LOADER_ERR_CODE LoadSections(NtLoaderModule& mod,
                                   : PAGE_READWRITE;
       DWORD oldProtect;
       ::VirtualProtect(targetAddress, section->Misc.VirtualSize,
-                       protection_type,
-                       &oldProtect);
+                       protection_type, &oldProtect);
     }
 
     section++;
@@ -178,7 +179,6 @@ typedef struct _DYNAMIC_FUNCTION_TABLE {
   ULONG EntryCount;
 } DYNAMIC_FUNCTION_TABLE;
 
-
 NT_LOADER_ERR_CODE LoadExceptionTable(NtLoaderModule& mod,
                                       const IMAGE_NT_HEADERS* apNtHeader) {
   const IMAGE_DATA_DIRECTORY* exceptionDirectory =
@@ -232,11 +232,13 @@ NT_LOADER_ERR_CODE LoadExceptionTable(NtLoaderModule& mod,
       }
     }
   }
+
+  return NT_LOADER_ERR_CODE::OK;
 }
 
 NT_LOADER_ERR_CODE LoadTLS(NtLoaderModule& mod,
                            const IMAGE_NT_HEADERS* apNtHeader,
-                        const IMAGE_NT_HEADERS* apSourceNt) {
+                           const IMAGE_NT_HEADERS* apSourceNt) {
   if (apNtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_TLS]
           .Size) {
     IMAGE_TLS_DIRECTORY* sourceTls = reinterpret_cast<IMAGE_TLS_DIRECTORY*>(
@@ -258,13 +260,11 @@ NT_LOADER_ERR_CODE LoadTLS(NtLoaderModule& mod,
         sourceTls->EndAddressOfRawData - sourceTls->StartAddressOfRawData,
         PAGE_READWRITE, &oldProtect);
 
-    memcpy(
-        tlsBase, reinterpret_cast<void*>(sourceTls->StartAddressOfRawData),
-        sourceTls->EndAddressOfRawData - sourceTls->StartAddressOfRawData);
-    memcpy(
-        (void*)targetTls->StartAddressOfRawData,
-        reinterpret_cast<void*>(sourceTls->StartAddressOfRawData),
-        sourceTls->EndAddressOfRawData - sourceTls->StartAddressOfRawData);
+    memcpy(tlsBase, reinterpret_cast<void*>(sourceTls->StartAddressOfRawData),
+           sourceTls->EndAddressOfRawData - sourceTls->StartAddressOfRawData);
+    memcpy((void*)targetTls->StartAddressOfRawData,
+           reinterpret_cast<void*>(sourceTls->StartAddressOfRawData),
+           sourceTls->EndAddressOfRawData - sourceTls->StartAddressOfRawData);
   }
 
   return NT_LOADER_ERR_CODE::OK;
@@ -300,11 +300,9 @@ NT_LOADER_ERR_CODE NtLoaderLoad(const uint8_t* target_binary,
                                 HMODULE target_module_handle,
                                 const NtLoaderConfiguration& config,
                                 NtLoaderModule& mod) {
-  if (!target_binary)
-    return NT_LOADER_ERR_CODE::BAD_PARAM;
+  if (!target_binary) return NT_LOADER_ERR_CODE::BAD_PARAM;
 
-  if (!target_module_handle)
-    return NT_LOADER_ERR_CODE::BAD_PARAM;
+  if (!target_module_handle) return NT_LOADER_ERR_CODE::BAD_PARAM;
 
   if (!config.module_name) return NT_LOADER_ERR_CODE::BAD_PARAM;
   if (!config.disk_path) return NT_LOADER_ERR_CODE::BAD_PARAM;
@@ -323,7 +321,7 @@ NT_LOADER_ERR_CODE NtLoaderLoad(const uint8_t* target_binary,
       target_binary + binary_dos->e_lfanew);
 
   mod.image_size = binary_nt->OptionalHeader.SizeOfImage;
-  mod.module_name = config.module_name; // For now.
+  mod.module_name = config.module_name;  // For now.
   mod.disk_path = config.disk_path;
 
   // these point to launcher.exe's headers (which is the memory region we
@@ -346,16 +344,13 @@ NT_LOADER_ERR_CODE NtLoaderLoad(const uint8_t* target_binary,
   // Can be used to decrypt the buffer (image) more before further processing is
   // done
   auto result = InvokeHook(mod, config, NT_LOADER_STAGE::BEFORE_SECTION_LOAD);
-  if (result != NT_LOADER_ERR_CODE::OK)
-    return result;
+  if (result != NT_LOADER_ERR_CODE::OK) return result;
 
   result = LoadSections(mod, config, binary_nt);
-  if (result != NT_LOADER_ERR_CODE::OK)
-    return result;
+  if (result != NT_LOADER_ERR_CODE::OK) return result;
 
   result = ResolveImports(mod, config, binary_nt);
-  if (result != NT_LOADER_ERR_CODE::OK)
-    return result;
+  if (result != NT_LOADER_ERR_CODE::OK) return result;
 
 #if defined(_M_AMD64)
   LoadExceptionTable(mod, target_nt);
@@ -388,17 +383,16 @@ NT_LOADER_ERR_CODE NtLoaderLoad(const uint8_t* target_binary,
 
   // Reprotect the NT headers
   // TODO fix this; it will crash games otherwise
-  //VirtualProtect((LPVOID)target_nt, 0x1000, oldProtect, &oldProtect);
+  // VirtualProtect((LPVOID)target_nt, 0x1000, oldProtect, &oldProtect);
 
   result = CallTLSInitalizisers(mod, target_module_handle, target_nt);
-  if (result != NT_LOADER_ERR_CODE::OK)
-    return result;
+  if (result != NT_LOADER_ERR_CODE::OK) return result;
 
   return NT_LOADER_ERR_CODE::OK;
 }
 
-void* NtLoaderGetBinaryNtHeader(const NtLoaderModule& mod) { 
-    const IMAGE_DOS_HEADER* dos =
+void* NtLoaderGetBinaryNtHeader(const NtLoaderModule& mod) {
+  const IMAGE_DOS_HEADER* dos =
       reinterpret_cast<const IMAGE_DOS_HEADER*>(mod.binary_buffer);
   return reinterpret_cast<void*>((uint8_t*)mod.binary_buffer + dos->e_lfanew);
 }
@@ -409,3 +403,5 @@ void NTLoaderInvokeEntryPoint(const NtLoaderModule& mod) {
     return entry_point();
   }
 }
+
+}  // namespace loadr

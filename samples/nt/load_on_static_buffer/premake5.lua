@@ -18,7 +18,7 @@ project "Host"
     includedirs
     {
         ".",
-        "../"
+        "../../../",
     }
 
     links

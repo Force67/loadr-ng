@@ -13,3 +13,4 @@ ntloader/ntloader.vcxproj.user
 *.lib
 *.pdb
 *.user
+/samples/nt/load_on_static_buffer/obj

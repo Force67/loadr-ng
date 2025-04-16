@@ -1,0 +1,1 @@
+include("nt/load_on_static_buffer")

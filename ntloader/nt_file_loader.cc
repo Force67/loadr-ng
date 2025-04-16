@@ -60,6 +60,7 @@ static HANDLE NtCurrentProcess() {
 #define STATUS_SUCCESS ((NTSTATUS)0x00000000L)
 #define FileStandardInformation (FILE_INFORMATION_CLASS)5
 
+namespace loadr {
 NTSTATUS LoadFileToMemory(PCWSTR FileName, PVOID* Buffer, PSIZE_T Size) {
   NTSTATUS status;
   HANDLE hFile = NULL;
@@ -157,4 +158,5 @@ NTSTATUS LoadFileToMemory(PCWSTR FileName, PVOID* Buffer, PSIZE_T Size) {
   *Size = allocSize;
 
   return STATUS_SUCCESS;
+}
 }

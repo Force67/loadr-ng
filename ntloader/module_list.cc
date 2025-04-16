@@ -1,15 +1,12 @@
-// Copyright (c) [Your Name or Organization]. All rights reserved.
-// Licensed under [Your License, if applicable].
-
-#ifndef MODULE_LIST_H_
-#define MODULE_LIST_H_
+#include "module_list.h"
 
 #include <sstream>
 #include <string>
 #include <vector>
 
 #include "loader.h"
-#include "module_list.h"
+
+namespace loadr {
 
 extern "C" {
 // Windows API and internal structure declarations.
@@ -304,7 +301,8 @@ InternalLdrDataTableEntry* FindLdrTableEntry(PCWSTR base_name) {
     auto len = wide_string_length(base_name) * sizeof(WCHAR);
     BOOL base_name_match =
         ::RtlCompareMemory(base_name, cur_entry->base_dll_name.Buffer,
-                         wide_string_length(base_name) * sizeof(WCHAR)) == len;
+                           wide_string_length(base_name) * sizeof(WCHAR)) ==
+        len;
 
     if (base_name_match == TRUE) {
       return cur_entry;
@@ -525,7 +523,7 @@ void EnumPebModuleList(TFn&& fn) {
 
 // Enumerates LDR table entries from the hash table.
 template <typename TFn>
-void EnumLdrTableEntries(TFn &&fn) {
+void EnumLdrTableEntries(TFn&& fn) {
   auto ldrp_hash_table = FindHashTable();
   if (!ldrp_hash_table) {
     return;
@@ -624,9 +622,9 @@ void NtLoaderInsertModuleToModuleList(const NtLoaderModule* module) {
   ldr_entry->entry_point = RVA(PVOID, module->module_handle,
                                nt_headers->OptionalHeader.AddressOfEntryPoint);
 
- // EnumPebModuleList();
- // OutputDebugStringW(L"Inserted module to the list\n");
- // EnumLdrTableEntries();
+  // EnumPebModuleList();
+  // OutputDebugStringW(L"Inserted module to the list\n");
+  // EnumLdrTableEntries();
 }
 
 void NtLoaderOverwriteInitialModule(const NtLoaderModule* module) {
@@ -645,5 +643,4 @@ void NtLoaderOverwriteInitialModule(const NtLoaderModule* module) {
     }
   });
 }
-
-#endif  // MODULE_LIST_H_
+}  // namespace loadr

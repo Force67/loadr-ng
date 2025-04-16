@@ -4,11 +4,14 @@
 #include <ntloader/module_list.h>
 #include <stdio.h>
 
-extern NTSTATUS LoadFileToMemory(PCWSTR FileName, PVOID* Buffer, PSIZE_T Size);
+namespace loadr {
+extern NTSTATUS LoadFileToMemory(PCWSTR FileName, PVOID* Buffer,
+                                        PSIZE_T Size);
+}
 
 #pragma comment(lib, "ntdllx.lib")
 
-bool MyLoaderHook(const NtLoaderModule* mod, NT_LOADER_STAGE stage,
+bool MyLoaderHook(const loadr::NtLoaderModule* mod, loadr::NT_LOADER_STAGE stage,
                   void* user_context) {
   char buf[256];
   snprintf(buf, sizeof(buf), "Hook: %d\n", static_cast<int>(stage));
@@ -31,7 +34,7 @@ int WinMain(HINSTANCE hInstance,
 
   PVOID buffer;
   SIZE_T size;
-  NTSTATUS status = LoadFileToMemory(bin_path.Buffer, &buffer, &size);
+  NTSTATUS status = loadr::LoadFileToMemory(bin_path.Buffer, &buffer, &size);
   if (!NT_SUCCESS(status)) {
     __debugbreak();
     return 1;
@@ -43,7 +46,7 @@ int WinMain(HINSTANCE hInstance,
                        L"(x86)\\Steam\\steamapps\\common\\"
                        L"Skyrim Special Edition");
 
-  InstallDirContext(path, path);
+  loadr::InstallDirContext(path, path);
 
   UNICODE_STRING module_name;
   RtlInitUnicodeString(&module_name, L"SkyrimSE.exe.unpacked.exe");
@@ -54,7 +57,7 @@ int WinMain(HINSTANCE hInstance,
                        L"(x86)\\Steam\\steamapps\\common\\"
                        L"Skyrim Special Edition\\SkyrimSE.exe.unpacked.exe");
 
-  NtLoaderConfiguration config{
+  const loadr::NtLoaderConfiguration config{
       .user_context = nullptr,
       .loader_hook = &MyLoaderHook,
       .load_limit = 0x10000000,
@@ -65,17 +68,17 @@ int WinMain(HINSTANCE hInstance,
       .get_proc_address = &::GetProcAddress,
   };
 
-  NtLoaderModule loader_module;
-  NT_LOADER_ERR_CODE err = NtLoaderLoad((const uint8_t*)buffer,
+  loadr::NtLoaderModule loader_module;
+  loadr::NT_LOADER_ERR_CODE err = loadr::NtLoaderLoad((const uint8_t*)buffer,
                                         ::GetModuleHandleW(nullptr), config, loader_module);
-  const char* const err_str = NtLoaderErrCodeToString(err);
+  const char* const err_str = loadr::NtLoaderErrCodeToString(err);
   if (err_str) {
     ::OutputDebugStringA("Error: ");
     ::OutputDebugStringA(err_str);
     ::OutputDebugStringA("\n");
   }
 
-  NtLoaderInsertModuleToModuleList(&loader_module);
+  loadr::NtLoaderInsertModuleToModuleList(&loader_module);
   HMODULE m = ::GetModuleHandleW(L"SkyrimSE.exe.unpacked.exe");
   m = m;
   char buf[256];
@@ -84,7 +87,7 @@ int WinMain(HINSTANCE hInstance,
   ::OutputDebugStringA(buf);
 
 
-  NtLoaderOverwriteInitialModule(&loader_module);
+  loadr::NtLoaderOverwriteInitialModule(&loader_module);
 
    wchar_t widebuf[256];
   ::GetModuleFileNameW(nullptr, widebuf, sizeof(widebuf));
@@ -96,7 +99,7 @@ int WinMain(HINSTANCE hInstance,
   ::OutputDebugStringW(cwd);
   ::OutputDebugStringW(L"\n");  
 
-  NTLoaderInvokeEntryPoint(loader_module);
+  loadr::NTLoaderInvokeEntryPoint(loader_module);
 
   return 0;
 }

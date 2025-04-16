@@ -4,6 +4,8 @@
 #include <winternl.h>
 #include <cstdint>
 
+namespace loadr {
+
 enum class NT_LOADER_ERR_CODE {
   OK,
   HOOK_FAILED,
@@ -71,7 +73,7 @@ struct NtLoaderConfiguration {
   // How much of the binary to load
   const uint32_t load_limit{UINT_MAX};
   const uint32_t behaviour_flags{0};
-  
+
   // Must be set to the current name of the module we are trying to load
   // So the load can insert the module into the modulelist.
   UNICODE_STRING* module_name{nullptr};
@@ -84,10 +86,10 @@ struct NtLoaderConfiguration {
 
 NT_LOADER_ERR_CODE NtLoaderLoad(
     const uint8_t* target_binary /*buffer of the binary (pe img) to laod*/,
-    HMODULE target_module_handle,
-    const NtLoaderConfiguration& config,
+    HMODULE target_module_handle, const NtLoaderConfiguration& config,
     NtLoaderModule&);
 
 void* NtLoaderGetBinaryNtHeader(const NtLoaderModule& mod);
 
 void NTLoaderInvokeEntryPoint(const NtLoaderModule& mod);
+}  // namespace loadr

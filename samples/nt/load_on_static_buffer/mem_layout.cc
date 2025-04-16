@@ -20,7 +20,7 @@ constexpr uintptr_t exeLoadSz = 0x40000000;
 #pragma comment(linker, "/merge:.text=.zdata")
 #pragma comment(linker, "/section:.zdata,re")
 
-#pragma bss_seg(".cyberpunk")
+#pragma bss_seg(".guest")
 uint8_t game_seg[exeLoadSz + 0x1000000];
 
 // high rip zone, used for RIP relative addressing
