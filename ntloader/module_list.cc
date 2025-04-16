@@ -641,6 +641,8 @@ void NtLoaderOverwriteInitialModule(const NtLoaderModule* module) {
 
       return TRUE;
     }
+
+    return FALSE;
   });
 }
 }  // namespace loadr

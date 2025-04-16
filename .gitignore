@@ -14,3 +14,6 @@ ntloader/ntloader.vcxproj.user
 *.pdb
 *.user
 /samples/nt/load_on_static_buffer/obj
+/samples/nt/load_dll/obj
+/samples/nt/sample_dll/obj
+*.filters

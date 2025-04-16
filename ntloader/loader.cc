@@ -281,13 +281,11 @@ NT_LOADER_ERR_CODE CallTLSInitalizisers(NtLoaderModule& mod,
 
   PIMAGE_TLS_CALLBACK* tlsCallbacks =
       (PIMAGE_TLS_CALLBACK*)tls_dir->AddressOfCallBacks;
-  if (tlsCallbacks != NULL) {
-    // Call each callback function in the array
+  if (tlsCallbacks) {
     for (int i = 0; tlsCallbacks[i] != NULL; i++) {
       tlsCallbacks[i](target_module_handle, DLL_PROCESS_ATTACH, NULL);
     }
   }
-
   return NT_LOADER_ERR_CODE::OK;
 }
 }  // namespace
@@ -301,9 +299,7 @@ NT_LOADER_ERR_CODE NtLoaderLoad(const uint8_t* target_binary,
                                 const NtLoaderConfiguration& config,
                                 NtLoaderModule& mod) {
   if (!target_binary) return NT_LOADER_ERR_CODE::BAD_PARAM;
-
   if (!target_module_handle) return NT_LOADER_ERR_CODE::BAD_PARAM;
-
   if (!config.module_name) return NT_LOADER_ERR_CODE::BAD_PARAM;
   if (!config.disk_path) return NT_LOADER_ERR_CODE::BAD_PARAM;
 
@@ -319,6 +315,7 @@ NT_LOADER_ERR_CODE NtLoaderLoad(const uint8_t* target_binary,
     return NT_LOADER_ERR_CODE::BUFFER_BAD_MAGIC;
   const IMAGE_NT_HEADERS* binary_nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(
       target_binary + binary_dos->e_lfanew);
+  const bool is_dll = binary_nt->FileHeader.Characteristics & IMAGE_FILE_DLL;
 
   mod.image_size = binary_nt->OptionalHeader.SizeOfImage;
   mod.module_name = config.module_name;  // For now.
@@ -354,7 +351,10 @@ NT_LOADER_ERR_CODE NtLoaderLoad(const uint8_t* target_binary,
 
 #if defined(_M_AMD64)
   LoadExceptionTable(mod, target_nt);
-  LoadTLS(mod, binary_nt, target_nt);
+
+  // TBD
+  if (!is_dll)
+    LoadTLS(mod, binary_nt, target_nt);
 #endif
 
   // Make the target address space writable (where we will write the new

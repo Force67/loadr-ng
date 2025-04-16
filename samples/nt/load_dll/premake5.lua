@@ -1,13 +1,10 @@
-project "StaticBufferHost"
+project "DllHost"
     language "C++"
     kind "WindowedApp"
 	optimize "Speed"
 	flags "NoManifest"
-	flags { "NoIncrementalLink" } 
 	editandcontinue "Off" -- this breaks our custom section ordering in the launcher, and is kind of annoying otherwise
 	buildoptions { "/O2" }
-
-	linkoptions "/IGNORE:4254 /DYNAMICBASE:NO /STACK:\"2097152\" /SAFESEH:NO /LARGEADDRESSAWARE /LAST:.zdata"
 
     vpaths
     {
