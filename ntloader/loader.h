@@ -92,4 +92,5 @@ NT_LOADER_ERR_CODE NtLoaderLoad(
 void* NtLoaderGetBinaryNtHeader(const NtLoaderModule& mod);
 
 void NTLoaderInvokeEntryPoint(const NtLoaderModule& mod);
+BOOL NTLoaderInvokeDllMain(const NtLoaderModule& mod, DWORD reason);
 }  // namespace loadr

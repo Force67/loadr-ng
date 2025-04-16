@@ -270,6 +270,81 @@ NT_LOADER_ERR_CODE LoadTLS(NtLoaderModule& mod,
   return NT_LOADER_ERR_CODE::OK;
 }
 
+NT_LOADER_ERR_CODE DoRelocations(NtLoaderModule& mod,
+                                 HMODULE target_module_handle,
+                                 const IMAGE_NT_HEADERS* target_nt) {
+  // Get the relocation directory from the target module (the one we're loading
+  // into)
+  const IMAGE_DATA_DIRECTORY* reloc_dir =
+      &target_nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
+
+  // If there are no relocations needed, we're done
+  if (reloc_dir->Size == 0) {
+    return NT_LOADER_ERR_CODE::OK;
+  }
+
+  // Calculate the delta between the preferred and actual load address
+  uintptr_t delta = reinterpret_cast<uintptr_t>(target_module_handle) -
+                    target_nt->OptionalHeader.ImageBase;
+
+  // If no relocation is needed (delta is 0), we're done
+  if (delta == 0) {
+    return NT_LOADER_ERR_CODE::OK;
+  }
+
+  // Get the base address of the relocation data
+  const IMAGE_BASE_RELOCATION* reloc =
+      reinterpret_cast<const IMAGE_BASE_RELOCATION*>(GetTargetBuffer(mod) +
+                                                     reloc_dir->VirtualAddress);
+
+  // Process all relocation blocks
+  while (reloc->VirtualAddress > 0 &&
+         reinterpret_cast<const uint8_t*>(reloc) <
+             (GetTargetBuffer(mod) + reloc_dir->VirtualAddress +
+              reloc_dir->Size)) {
+    // Calculate how many relocation entries are in this block
+    uint32_t count =
+        (reloc->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(WORD);
+    const WORD* items = reinterpret_cast<const WORD*>(reloc + 1);
+
+    // Get the base address for this block
+    uint8_t* block_base = GetTargetBuffer(mod) + reloc->VirtualAddress;
+
+    // Process each relocation entry in the block
+    for (uint32_t i = 0; i < count; i++) {
+      // Extract the type and offset from the relocation entry
+      WORD type = items[i] >> 12;
+      WORD offset = items[i] & 0xFFF;
+
+      // Only process types that need relocation
+      if (type == IMAGE_REL_BASED_HIGHLOW ||
+          (sizeof(void*) == 8 && type == IMAGE_REL_BASED_DIR64)) {
+        // Get the address that needs to be relocated
+        uintptr_t* patch_addr =
+            reinterpret_cast<uintptr_t*>(block_base + offset);
+
+        // Apply the delta
+        *patch_addr += delta;
+      }
+      // Handle other relocation types if needed
+      else if (type == IMAGE_REL_BASED_ABSOLUTE) {
+        // This is just padding, skip it
+        continue;
+      } else {
+        // Unsupported relocation type
+        return NT_LOADER_ERR_CODE::HOOK_FAILED;
+      }
+    }
+
+    // Move to the next relocation block
+    reloc = reinterpret_cast<const IMAGE_BASE_RELOCATION*>(
+        reinterpret_cast<const uint8_t*>(reloc) + reloc->SizeOfBlock);
+  }
+
+  return NT_LOADER_ERR_CODE::OK;
+}
+
+
 NT_LOADER_ERR_CODE CallTLSInitalizisers(NtLoaderModule& mod,
                                         HMODULE target_module_handle,
                                         const IMAGE_NT_HEADERS* target_nt) {
@@ -278,7 +353,6 @@ NT_LOADER_ERR_CODE CallTLSInitalizisers(NtLoaderModule& mod,
           GetTargetBuffer(mod) +
           target_nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_TLS]
               .VirtualAddress);
-
   PIMAGE_TLS_CALLBACK* tlsCallbacks =
       (PIMAGE_TLS_CALLBACK*)tls_dir->AddressOfCallBacks;
   if (tlsCallbacks) {
@@ -286,6 +360,20 @@ NT_LOADER_ERR_CODE CallTLSInitalizisers(NtLoaderModule& mod,
       tlsCallbacks[i](target_module_handle, DLL_PROCESS_ATTACH, NULL);
     }
   }
+   #if 0
+    // dumb idea in windows.
+  DWORD rva = tls_dir->AddressOfCallBacks - target_nt->OptionalHeader.ImageBase;
+
+  PIMAGE_TLS_CALLBACK* callbacks =
+      reinterpret_cast<PIMAGE_TLS_CALLBACK*>(reinterpret_cast<uint8_t*>(mod.module_handle) + rva);
+
+
+  if (callbacks) {
+    for (int i = 0; callbacks[i] != NULL; i++) {
+      callbacks[i](target_module_handle, DLL_PROCESS_ATTACH, NULL);
+    }
+  }
+  #endif
   return NT_LOADER_ERR_CODE::OK;
 }
 }  // namespace
@@ -381,6 +469,9 @@ NT_LOADER_ERR_CODE NtLoaderLoad(const uint8_t* target_binary,
         original_debug_dir;
   }
 
+  result = DoRelocations(mod, target_module_handle, target_nt);
+  if (result != NT_LOADER_ERR_CODE::OK) return result;
+
   // Reprotect the NT headers
   // TODO fix this; it will crash games otherwise
   // VirtualProtect((LPVOID)target_nt, 0x1000, oldProtect, &oldProtect);
@@ -403,5 +494,13 @@ void NTLoaderInvokeEntryPoint(const NtLoaderModule& mod) {
     return entry_point();
   }
 }
+
+BOOL NTLoaderInvokeDllMain(const NtLoaderModule& mod, DWORD reason) {
+  if (mod.entry_point_addr) {
+    auto* dll_main = reinterpret_cast<BOOL(WINAPI*)(HMODULE, DWORD, LPVOID)>(mod.entry_point_addr);
+    return dll_main(mod.module_handle, reason, nullptr);
+  }
+  return FALSE;
+  }
 
 }  // namespace loadr

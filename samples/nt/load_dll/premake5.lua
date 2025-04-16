@@ -4,8 +4,7 @@ project "DllHost"
 	optimize "Speed"
 	flags "NoManifest"
 	editandcontinue "Off" -- this breaks our custom section ordering in the launcher, and is kind of annoying otherwise
-	buildoptions { "/O2" }
-
+    flags { "NoIncrementalLink" } 
     vpaths
     {
         ["*"] = "premake5.lua"

@@ -14,22 +14,12 @@ filter("configurations:Release")
     runtime("Release")
     optimize("Speed")
 
-filter("configurations:Shipping")
-    runtime("Release")
-    optimize("Speed")
-    flags({
-      "LinkTimeOptimization"
-    })
-
 filter("language:C or C++")
     vectorextensions("SSE4.1")
     staticruntime("on")
 
 filter("language:C++")
     cppdialect("C++20")
-
-filter("system:windows")
-    defines("OS_WIN")
     
 workspace("Loadr")
     configurations({

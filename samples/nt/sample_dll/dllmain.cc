@@ -3,11 +3,11 @@
 
 static thread_local int thread_local_var = 0; 
 
-__declspec(dllexport) int GetThreadLocalVar() {
+extern "C" __declspec(dllexport) int GetThreadLocalVar() {
   return thread_local_var;
 }
 
-__declspec(dllexport) void SetThreadLocalVar(int value) {
+extern "C" __declspec(dllexport) void SetThreadLocalVar(int value) {
   thread_local_var = value;
 }
 

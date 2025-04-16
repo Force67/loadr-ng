@@ -17,3 +17,9 @@ ntloader/ntloader.vcxproj.user
 /samples/nt/load_dll/obj
 /samples/nt/sample_dll/obj
 *.filters
+/samples/nt/sample_dll/bin
+*.id0
+*.id1
+*.id2
+*.nam
+*.til
