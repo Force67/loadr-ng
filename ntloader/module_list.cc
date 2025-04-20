@@ -627,6 +627,140 @@ void NtLoaderInsertModuleToModuleList(const NtLoaderModule* module) {
   // EnumLdrTableEntries();
 }
 
+inline void RemoveEntryList(PLIST_ENTRY Entry) {
+  if (!Entry || !Entry->Flink || !Entry->Blink) {
+    return;
+  }
+
+  if (Entry->Flink == Entry || Entry->Blink == Entry) {
+    return;
+  }
+  // Check if neighbors point back correctly (basic integrity check)
+  if (Entry->Flink->Blink != Entry || Entry->Blink->Flink != Entry) {
+    // TODO: Decide whether to proceed - proceeding might worsen corruption. For
+    // robustness, maybe stop here. return; // Option: Avoid modifying corrupted
+    // list
+  }
+
+  __try {
+    PLIST_ENTRY Blink = Entry->Blink;
+    PLIST_ENTRY Flink = Entry->Flink;
+
+    if (!Blink || !Flink) {
+      return;
+    }
+
+    Blink->Flink = Flink;
+    Flink->Blink = Blink;
+
+    // Reset the entry's pointers to signify it's unlinked (best practice)
+    Entry->Flink = Entry;  // Point to self
+    Entry->Blink = Entry;
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
+  }
+}
+
+InternalLdrDataTableEntry* FindLdrTableEntryByHandle(PVOID handle) {
+  PInternalPeb peb = (PInternalPeb)__readgsqword(0x60);
+  if (!peb || !peb->ldr) {
+    return nullptr;
+  }
+
+  PLIST_ENTRY list_head = &peb->ldr->in_load_order_module_list;
+  PLIST_ENTRY list_entry = list_head->Flink;
+
+  // Check if the list is empty or corrupted
+  if (list_entry == list_head || list_entry == NULL ||
+      list_head->Flink == NULL) {
+    return nullptr;
+  }
+
+  if (handle == nullptr) {
+    return nullptr;
+  }
+
+  while (list_entry != list_head) {
+    // Check for valid list_entry before dereferencing
+    if (list_entry == NULL) {
+      OutputDebugStringW(
+          L"Error: Encountered NULL entry in InLoadOrderModuleList "
+          L"(FindByHandle).\n");
+      return nullptr;
+    }
+
+    InternalLdrDataTableEntry* cur_entry = CONTAINING_RECORD(
+        list_entry, InternalLdrDataTableEntry, in_load_order_links);
+
+    // Check if cur_entry seems valid before using it
+    if (cur_entry == NULL) {
+      // Skip potentially invalid entry or handle error
+      list_entry = list_entry->Flink;
+      continue;
+    }
+
+    if (cur_entry->dll_base == handle) {
+      return cur_entry;
+    }
+    list_entry = list_entry->Flink;
+  }
+
+  return nullptr;
+}
+
+#define min(a, b) ((a) < (b) ? (a) : (b))
+
+bool NtLoaderRemoveModuleFromModuleList(const NtLoaderModule* module) {
+  PVOID moduleHandle = module->module_handle;
+
+  if (!moduleHandle) {
+    return false;
+  }
+
+  // 1. Find the entry to remove using the module handle
+  InternalLdrDataTableEntry* entry_to_yeet =
+      FindLdrTableEntryByHandle(moduleHandle);
+  if (!entry_to_yeet) {
+    return false;
+  }
+
+  // 2. Unlink from the three PEB doubly linked lists
+  RemoveEntryList(&entry_to_yeet->in_load_order_links);
+  RemoveEntryList(&entry_to_yeet->in_memory_order_links);
+  RemoveEntryList(&entry_to_yeet->in_initialization_order_links);
+
+  // 3. Unlink from the Hash Table list
+  // Check if hash_links were actually initialized and part of a list before
+  if (entry_to_yeet->hash_links.Flink != &entry_to_yeet->hash_links &&
+      entry_to_yeet->hash_links.Blink !=
+          &entry_to_yeet->hash_links &&  // Should not point to self if linked
+      entry_to_yeet->hash_links.Flink != NULL &&
+      entry_to_yeet->hash_links.Blink != NULL) {
+    RemoveEntryList(&entry_to_yeet->hash_links);
+  } else {
+    OutputDebugStringW(
+        L"Note: Module entry was not found in a hash list bucket (or links "
+        L"were invalid/uninitialized).\n");
+  }
+
+  OutputDebugStringW(
+      L"WARNING: RB Tree node removal is SKIPPED due to complexity and high "
+      L"risk of destabilization.\n");
+
+  if (entry_to_yeet->ddag_node) {
+    // Optional: Could check ddag_node->load_count. If > 1, maybe don't free?
+    // But since this is a manual removal, we assume we are forcing it out.
+    HeapFree(GetProcessHeap(), 0, entry_to_yeet->ddag_node);
+    entry_to_yeet->ddag_node = NULL;
+  } else {
+    OutputDebugStringW(
+        L"Warning: Ldr entry did not have an associated DDAG node to free.\n");
+  }
+
+  HeapFree(GetProcessHeap(), 0, entry_to_yeet);
+  entry_to_yeet = NULL;
+  return true;
+}
+
 void NtLoaderOverwriteInitialModule(const NtLoaderModule* module) {
   EnumLdrTableEntries([&](InternalLdrDataTableEntry* entry) {
     if (entry->dll_base == module->module_handle) {

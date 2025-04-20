@@ -20,16 +20,36 @@ bool MyLoaderHook(const loadr::NtLoaderModule* mod, loadr::NT_LOADER_STAGE stage
 }
 
 // winmain
-int WinMain(HINSTANCE hInstance,
+int APIENTRY WinMain(HINSTANCE hInstance,
             HINSTANCE hPrevInstance,
             LPSTR lpCmdLine,
             int nCmdShow) {
+  wchar_t dllPathBuf[MAX_PATH];
+  const size_t bufferSizeInWchars = MAX_PATH;
 
-  constexpr wchar_t kDllPath[] = LR"(C:\Users\vince\Projects\ntloader-ng\samples\nt\sample_dll\bin\Debug\SampleDll_64.dll)";
-  constexpr wchar_t kModulePath[] = LR"(C:\Users\vince\Projects\ntloader-ng\samples\nt\sample_dll\bin\Debug)";
+  DWORD pathLen = ::GetModuleFileNameW(nullptr, dllPathBuf, bufferSizeInWchars);
+  wchar_t* last_backslash = wcsrchr(dllPathBuf, L'\\');
+  if (!last_backslash) {
+    wprintf(L"Error: No backslash found in module path: %s\n", dllPathBuf);
+    __debugbreak();
+    return 1;
+  }
+  wchar_t* fileNameStart = last_backslash + 1;
+  const wchar_t* dllName = L"SampleDll_64.dll";
+  size_t remaining_chars = bufferSizeInWchars - (fileNameStart - dllPathBuf);
+  errno_t serr = wcscpy_s(fileNameStart, remaining_chars, dllName);
+
+  if (serr != 0) {
+    // Handle error: wcscpy_s failed (e.g., insufficient space calculated)
+    wprintf(L"Error: wcscpy_s failed to append DLL name. Error code: %d\n",
+            serr);
+    __debugbreak();
+    return 1;
+  }
+
 
   UNICODE_STRING bin_path;
-  RtlInitUnicodeString(&bin_path, kDllPath);
+  RtlInitUnicodeString(&bin_path, dllPathBuf);
 
   PVOID buffer;
   SIZE_T size;
@@ -39,16 +59,8 @@ int WinMain(HINSTANCE hInstance,
     return 1;
   }
 
-  UNICODE_STRING path;
-  RtlInitUnicodeString(&path, kModulePath);
-
-  //loadr::InstallDirContext(path, path);
-
   UNICODE_STRING module_name;
   RtlInitUnicodeString(&module_name, L"SampleDll_64.dll");
-
-  UNICODE_STRING full_path_to_module;
-  RtlInitUnicodeString(&full_path_to_module, kDllPath);
 
   const loadr::NtLoaderConfiguration config{
       .user_context = nullptr,
@@ -56,7 +68,7 @@ int WinMain(HINSTANCE hInstance,
       .load_limit = 0x10000000,
       .behaviour_flags = 0,
       .module_name = &module_name,
-      .disk_path = &full_path_to_module,
+      .disk_path = &bin_path,
       .load_library = &::LoadLibraryA,
       .get_proc_address = &::GetProcAddress,
   };
@@ -69,7 +81,7 @@ int WinMain(HINSTANCE hInstance,
     return 1;
   }
 
-  wchar_t buf[512];
+  wchar_t buf[256];
   wprintf_s(buf, "Module will be loaded at %p", dll_base);
   ::OutputDebugStringW(buf);
 
@@ -115,7 +127,7 @@ int WinMain(HINSTANCE hInstance,
       ::GetProcAddress(found_module, "GetThreadLocalVar");
 
   FARPROC set_thread_local_var2 =
-      GetProcAddressRaw1337(found_module, "SetThreadLocalVar");
+      NtLoaderGetProcAddress(loader_module, "SetThreadLocalVar");
   char buf2[256];
   snprintf(buf2, sizeof(buf2), "SetThreadLocalVar: %p\n",
            set_thread_local_var2);
@@ -140,6 +152,17 @@ int WinMain(HINSTANCE hInstance,
     }
   } else {
     ::OutputDebugStringW(L"Failed to get function addresses\n");
+  }
+
+  loadr::NTLoaderInvokeDllMain(loader_module, DLL_PROCESS_DETACH);
+  loadr::NtLoaderRemoveModuleFromModuleList(&loader_module);
+  // Free the allocated memory
+  if (dll_base) {
+    BOOL result = ::VirtualFreeEx(::GetCurrentProcess(), dll_base, 0, MEM_RELEASE);
+    if (!result) {
+      ::OutputDebugStringA("VirtualFreeEx failed\n");
+      return 1;
+    }
   }
 
   return 0;

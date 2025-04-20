@@ -25,7 +25,7 @@ static_assert(
 inline NT_LOADER_ERR_CODE InvokeHook(const NtLoaderModule& mod,
                                      const NtLoaderConfiguration& config,
                                      NT_LOADER_STAGE stage) {
-  if (config.loader_hook && config.user_context &&
+  if (config.loader_hook &&
       !config.loader_hook(&mod, stage, config.user_context)) {
     return NT_LOADER_ERR_CODE::HOOK_FAILED;
   }
@@ -379,6 +379,7 @@ NT_LOADER_ERR_CODE CallTLSInitalizisers(NtLoaderModule& mod,
 }  // namespace
 
 const char* const NtLoaderErrCodeToString(NT_LOADER_ERR_CODE err_code) {
+  if (err_code == NT_LOADER_ERR_CODE::OK) return nullptr;
   return NtLoaderErrStringArray[static_cast<size_t>(err_code)];
 }
 

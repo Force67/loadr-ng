@@ -23,6 +23,7 @@ filter("language:C++")
     cppdialect("C++20")
     
 workspace("Loadr")
+    targetdir("bin")
     configurations({
       "Debug",
       "Release",
