@@ -3,6 +3,7 @@ project "DllHost"
     kind "WindowedApp"
 	optimize "Speed"
 	flags "NoManifest"
+    optimize("Off")
 	editandcontinue "Off" -- this breaks our custom section ordering in the launcher, and is kind of annoying otherwise
     flags { "NoIncrementalLink" } 
     vpaths

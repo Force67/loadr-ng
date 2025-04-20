@@ -9,6 +9,7 @@ filter("architecture:x86_64")
 
 filter("configurations:Debug")
     defines("TK_DBG")
+    optimize("Off")
 
 filter("configurations:Release")
     runtime("Release")

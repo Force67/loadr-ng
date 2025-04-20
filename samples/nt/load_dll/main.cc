@@ -19,122 +19,6 @@ bool MyLoaderHook(const loadr::NtLoaderModule* mod, loadr::NT_LOADER_STAGE stage
   return true;
 }
 
-FARPROC GetProcAddressRaw1337(HMODULE module_base, const char* proc_name) {
-  // Validate inputs
-  if (!module_base || !proc_name) {
-    __debugbreak();
-    ::OutputDebugStringA("Invalid parameters\n");
-    return nullptr;
-  }
-
-  // Get DOS header and verify signature
-  const IMAGE_DOS_HEADER* dos_header =
-      reinterpret_cast<const IMAGE_DOS_HEADER*>(module_base);
-  if (dos_header->e_magic != IMAGE_DOS_SIGNATURE) {
-    __debugbreak();
-    ::OutputDebugStringA("Invalid DOS signature\n");
-    return nullptr;
-  }
-
-  // Get NT headers
-  const IMAGE_NT_HEADERS* nt_headers =
-      reinterpret_cast<const IMAGE_NT_HEADERS*>(
-          reinterpret_cast<const uint8_t*>(module_base) + dos_header->e_lfanew);
-  if (nt_headers->Signature != IMAGE_NT_SIGNATURE) {
-    __debugbreak();
-    ::OutputDebugStringA("Invalid NT signature\n");
-    return nullptr;
-  }
-
-  // Get export directory
-  const IMAGE_DATA_DIRECTORY* export_dir =
-      &nt_headers->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
-  if (export_dir->Size == 0 || export_dir->VirtualAddress == 0) {
-    __debugbreak();
-    ::OutputDebugStringA("No export directory\n");
-    return nullptr;  // Module has no exports
-  }
-
-  const IMAGE_EXPORT_DIRECTORY* export_directory =
-      reinterpret_cast<const IMAGE_EXPORT_DIRECTORY*>(
-          reinterpret_cast<const uint8_t*>(module_base) +
-          export_dir->VirtualAddress);
-
-  // Get the various export tables
-  const uint32_t* functions = reinterpret_cast<const uint32_t*>(
-      reinterpret_cast<const uint8_t*>(module_base) +
-      export_directory->AddressOfFunctions);
-  const uint32_t* names = reinterpret_cast<const uint32_t*>(
-      reinterpret_cast<const uint8_t*>(module_base) +
-      export_directory->AddressOfNames);
-  const uint16_t* ordinals = reinterpret_cast<const uint16_t*>(
-      reinterpret_cast<const uint8_t*>(module_base) +
-      export_directory->AddressOfNameOrdinals);
-
-  // Determine if we're searching by name or ordinal
-  if (reinterpret_cast<uintptr_t>(proc_name) <= 0xFFFF) {
-    // Search by ordinal (16-bit value)
-    uint16_t ordinal = LOWORD(proc_name);
-    if (ordinal < export_directory->Base ||
-        ordinal >=
-            export_directory->Base + export_directory->NumberOfFunctions) {
-      ::OutputDebugStringA("Invalid ordinal\n");
-      __debugbreak();
-      return nullptr;
-    }
-
-    uint32_t rva = functions[ordinal - export_directory->Base];
-    if (rva == 0) {
-      __debugbreak();
-      ::OutputDebugStringA("Function RVA is zero\n");
-      return nullptr;
-    }
-
-    // Check for forwarded exports
-    if (rva >= export_dir->VirtualAddress &&
-        rva < export_dir->VirtualAddress + export_dir->Size) {
-      // Forwarded exports aren't supported in this raw implementation
-      __debugbreak();
-      ::OutputDebugStringA("Forwarded exports not supported\n");
-      return nullptr;
-    }
-
-    return reinterpret_cast<FARPROC>(reinterpret_cast<uint8_t*>(module_base) +
-                                     rva);
-  } else {
-    // Search by name (standard case)
-    for (DWORD i = 0; i < export_directory->NumberOfNames; i++) {
-      const char* name = reinterpret_cast<const char*>(
-          reinterpret_cast<const uint8_t*>(module_base) + names[i]);
-
-      if (strcmp(proc_name, name) == 0) {
-        uint32_t rva = functions[ordinals[i]];
-        if (rva == 0) {
-          __debugbreak();
-          ::OutputDebugStringA("Function RVA is zero\n");
-          return nullptr;
-        }
-
-        // Check for forwarded exports
-        if (rva >= export_dir->VirtualAddress &&
-            rva < export_dir->VirtualAddress + export_dir->Size) {
-          // Forwarded exports aren't supported in this raw implementation
-          __debugbreak();
-          ::OutputDebugStringA("Forwarded exports not supported\n");
-          return nullptr;
-        }
-
-        return reinterpret_cast<FARPROC>(
-            reinterpret_cast<uint8_t*>(module_base) + rva);
-      }
-    }
-  }
-  __debugbreak();
-  ::OutputDebugStringA("Function not found\n");
-  return nullptr;  // Function not found
-}
-
-
 // winmain
 int WinMain(HINSTANCE hInstance,
             HINSTANCE hPrevInstance,
@@ -190,7 +74,7 @@ int WinMain(HINSTANCE hInstance,
   ::OutputDebugStringW(buf);
 
   loadr::NtLoaderModule loader_module;
-  const auto err = loadr::NtLoaderLoad((const uint8_t*)buffer,
+  const auto err = loadr::NtLoaderLoadDynBuffer((const uint8_t*)buffer,
                                         static_cast<HMODULE>(dll_base), config, loader_module);
   const char* const err_str = loadr::NtLoaderErrCodeToString(err);
   if (err_str) {

@@ -61,19 +61,19 @@ NT_LOADER_ERR_CODE LoadSections(NtLoaderModule& mod,
                                 const IMAGE_NT_HEADERS* nt_header) {
   auto* section = IMAGE_FIRST_SECTION(nt_header);
   for (int i = 0; i < nt_header->FileHeader.NumberOfSections; i++) {
-    uint8_t* targetAddress = reinterpret_cast<uint8_t*>(
+    uint8_t* target_address = reinterpret_cast<uint8_t*>(
         GetTargetBuffer(mod) + section->VirtualAddress);
-    const void* sourceAddress = mod.binary_buffer + section->PointerToRawData;
+    const void* source_address = mod.binary_buffer + section->PointerToRawData;
 
-    if (targetAddress >=
+    if (target_address >=
         (reinterpret_cast<uint8_t*>(mod.module_handle) + config.load_limit)) {
       return NT_LOADER_ERR_CODE::LOAD_LIMIT_EXCEEDED;
     }
 
     if (section->SizeOfRawData > 0) {
-      uint32_t sizeOfData =
+      const uint32_t data_size =
           mmin(section->SizeOfRawData, section->Misc.VirtualSize);
-      ::memcpy(targetAddress, sourceAddress, sizeOfData);
+      ::memcpy(target_address, source_address, data_size);
 
       InvokeHook(mod, config, NT_LOADER_STAGE::LOAD_SECTION);
 
@@ -81,7 +81,7 @@ NT_LOADER_ERR_CODE LoadSections(NtLoaderModule& mod,
                                   ? PAGE_EXECUTE_READ
                                   : PAGE_READWRITE;
       DWORD oldProtect;
-      ::VirtualProtect(targetAddress, section->Misc.VirtualSize,
+      ::VirtualProtect(target_address, section->Misc.VirtualSize,
                        protection_type, &oldProtect);
     }
 
@@ -482,6 +482,65 @@ NT_LOADER_ERR_CODE NtLoaderLoad(const uint8_t* target_binary,
   return NT_LOADER_ERR_CODE::OK;
 }
 
+NT_LOADER_ERR_CODE NtLoaderLoadDynBuffer(const uint8_t* target_binary,
+                                         HMODULE target_module_handle,
+                                         const NtLoaderConfiguration& config,
+                                         NtLoaderModule& mod) {
+  if (!target_binary) return NT_LOADER_ERR_CODE::BAD_PARAM;
+  if (!target_module_handle) return NT_LOADER_ERR_CODE::BAD_PARAM;
+  if (!config.module_name) return NT_LOADER_ERR_CODE::BAD_PARAM;
+  if (!config.disk_path) return NT_LOADER_ERR_CODE::BAD_PARAM;
+
+  // memset(&mod, 0, sizeof(NtLoaderModule));
+  // mod.disk_path = path;
+  mod.binary_buffer = target_binary;
+  mod.module_handle = target_module_handle;  // The image to be overridden
+
+  // check if the user supplied buffer is trash
+  const IMAGE_DOS_HEADER* binary_dos =
+      reinterpret_cast<const IMAGE_DOS_HEADER*>(target_binary);
+  if (binary_dos->e_magic != IMAGE_DOS_SIGNATURE)
+    return NT_LOADER_ERR_CODE::BUFFER_BAD_MAGIC;
+  const IMAGE_NT_HEADERS* binary_nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(
+      target_binary + binary_dos->e_lfanew);
+  const bool is_dll = binary_nt->FileHeader.Characteristics & IMAGE_FILE_DLL;
+
+  mod.image_size = binary_nt->OptionalHeader.SizeOfImage;
+  mod.module_name = config.module_name;  // For now.
+  mod.disk_path = config.disk_path;
+  mod.entry_point_addr = reinterpret_cast<const void*>(
+      GetTargetBuffer(mod) + binary_nt->OptionalHeader.AddressOfEntryPoint);
+
+  auto result = InvokeHook(mod, config, NT_LOADER_STAGE::BEFORE_SECTION_LOAD);
+  if (result != NT_LOADER_ERR_CODE::OK) return result;
+  
+  memcpy((LPVOID)target_module_handle, target_binary,
+         binary_nt->OptionalHeader.SizeOfHeaders);
+
+  result = LoadSections(mod, config, binary_nt);
+  if (result != NT_LOADER_ERR_CODE::OK) return result;
+
+  const IMAGE_DOS_HEADER* target_dos =
+      reinterpret_cast<const IMAGE_DOS_HEADER*>(GetTargetBuffer(mod));
+  IMAGE_NT_HEADERS* target_nt = reinterpret_cast<IMAGE_NT_HEADERS*>(
+      GetTargetBuffer(mod) + target_dos->e_lfanew);
+
+  result = ResolveImports(mod, config, binary_nt);
+  if (result != NT_LOADER_ERR_CODE::OK) return result;
+
+  result = DoRelocations(mod, target_module_handle, binary_nt);
+  if (result != NT_LOADER_ERR_CODE::OK) return result;
+
+  // Reprotect the NT headers
+  // TODO fix this; it will crash games otherwise
+  // VirtualProtect((LPVOID)target_nt, 0x1000, oldProtect, &oldProtect);
+
+  result = CallTLSInitalizisers(mod, target_module_handle, target_nt);
+  if (result != NT_LOADER_ERR_CODE::OK) return result;
+
+  return NT_LOADER_ERR_CODE::OK;
+}
+
 void* NtLoaderGetBinaryNtHeader(const NtLoaderModule& mod) {
   const IMAGE_DOS_HEADER* dos =
       reinterpret_cast<const IMAGE_DOS_HEADER*>(mod.binary_buffer);
@@ -501,6 +560,101 @@ BOOL NTLoaderInvokeDllMain(const NtLoaderModule& mod, DWORD reason) {
     return dll_main(mod.module_handle, reason, nullptr);
   }
   return FALSE;
-  }
+}
+
+FARPROC NtLoaderGetProcAddress(const NtLoaderModule& mod,
+                               const char* proc_name) {
+  HMODULE module_base = mod.module_handle;
+    if (!module_base || !proc_name) {
+      return nullptr;
+    }
+
+    // Get DOS header and verify signature
+    const IMAGE_DOS_HEADER* dos_header =
+        reinterpret_cast<const IMAGE_DOS_HEADER*>(module_base);
+    if (dos_header->e_magic != IMAGE_DOS_SIGNATURE) {
+      return nullptr;
+    }
+
+    // Get NT headers
+    const IMAGE_NT_HEADERS* nt_headers =
+        reinterpret_cast<const IMAGE_NT_HEADERS*>(
+            reinterpret_cast<const uint8_t*>(module_base) +
+            dos_header->e_lfanew);
+    if (nt_headers->Signature != IMAGE_NT_SIGNATURE) {
+      return nullptr;
+    }
+
+    // Get export directory
+    const IMAGE_DATA_DIRECTORY* export_dir =
+        &nt_headers->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+    if (export_dir->Size == 0 || export_dir->VirtualAddress == 0) {
+      return nullptr;  // Module has no exports
+    }
+
+    const IMAGE_EXPORT_DIRECTORY* export_directory =
+        reinterpret_cast<const IMAGE_EXPORT_DIRECTORY*>(
+            reinterpret_cast<const uint8_t*>(module_base) +
+            export_dir->VirtualAddress);
+
+    // Get the various export tables
+    const uint32_t* functions = reinterpret_cast<const uint32_t*>(
+        reinterpret_cast<const uint8_t*>(module_base) +
+        export_directory->AddressOfFunctions);
+    const uint32_t* names = reinterpret_cast<const uint32_t*>(
+        reinterpret_cast<const uint8_t*>(module_base) +
+        export_directory->AddressOfNames);
+    const uint16_t* ordinals = reinterpret_cast<const uint16_t*>(
+        reinterpret_cast<const uint8_t*>(module_base) +
+        export_directory->AddressOfNameOrdinals);
+
+    // Determine if we're searching by name or ordinal
+    if (reinterpret_cast<uintptr_t>(proc_name) <= 0xFFFF) {
+      // Search by ordinal (16-bit value)
+      uint16_t ordinal = LOWORD(proc_name);
+      if (ordinal < export_directory->Base ||
+          ordinal >=
+              export_directory->Base + export_directory->NumberOfFunctions) {
+        return nullptr;
+      }
+
+      uint32_t rva = functions[ordinal - export_directory->Base];
+      if (rva == 0) {
+        return nullptr;
+      }
+
+      // Check for forwarded exports
+      if (rva >= export_dir->VirtualAddress &&
+          rva < export_dir->VirtualAddress + export_dir->Size) {
+        return nullptr;
+      }
+
+      return reinterpret_cast<FARPROC>(reinterpret_cast<uint8_t*>(module_base) +
+                                       rva);
+    } else {
+      // Search by name (standard case)
+      for (DWORD i = 0; i < export_directory->NumberOfNames; i++) {
+        const char* name = reinterpret_cast<const char*>(
+            reinterpret_cast<const uint8_t*>(module_base) + names[i]);
+
+        if (strcmp(proc_name, name) == 0) {
+          uint32_t rva = functions[ordinals[i]];
+          if (rva == 0) {
+            return nullptr;
+          }
+
+          // Check for forwarded exports
+          if (rva >= export_dir->VirtualAddress &&
+              rva < export_dir->VirtualAddress + export_dir->Size) {
+            return nullptr;
+          }
+
+          return reinterpret_cast<FARPROC>(
+              reinterpret_cast<uint8_t*>(module_base) + rva);
+        }
+      }
+    }
+    return nullptr;  // Function not found
+}
 
 }  // namespace loadr
