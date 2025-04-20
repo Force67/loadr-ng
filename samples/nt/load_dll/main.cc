@@ -9,7 +9,7 @@ extern NTSTATUS LoadFileToMemory(PCWSTR FileName, PVOID* Buffer,
                                         PSIZE_T Size);
 }
 
-#pragma comment(lib, "ntdllx.lib")
+#pragma comment(lib, "ntdll.lib")
 
 bool MyLoaderHook(const loadr::NtLoaderModule* mod, loadr::NT_LOADER_STAGE stage,
                   void* user_context) {

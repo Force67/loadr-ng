@@ -9,7 +9,7 @@ namespace loadr {
 extern NTSTATUS LoadFileToMemory(PCWSTR FileName, PVOID* Buffer, PSIZE_T Size);
 }
 
-#pragma comment(lib, "ntdllx.lib")
+#pragma comment(lib, "ntdll.lib")
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "shell32.lib")
 
