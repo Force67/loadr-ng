@@ -9,17 +9,11 @@ filter("architecture:x86_64")
 
 filter("configurations:Debug")
     defines("TK_DBG")
+    optimize("Off")
 
 filter("configurations:Release")
     runtime("Release")
     optimize("Speed")
-
-filter("configurations:Shipping")
-    runtime("Release")
-    optimize("Speed")
-    flags({
-      "LinkTimeOptimization"
-    })
 
 filter("language:C or C++")
     vectorextensions("SSE4.1")
@@ -27,11 +21,9 @@ filter("language:C or C++")
 
 filter("language:C++")
     cppdialect("C++20")
-
-filter("system:windows")
-    defines("OS_WIN")
     
 workspace("Loadr")
+    targetdir("bin")
     configurations({
       "Debug",
       "Release",

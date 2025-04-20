@@ -89,7 +89,16 @@ NT_LOADER_ERR_CODE NtLoaderLoad(
     HMODULE target_module_handle, const NtLoaderConfiguration& config,
     NtLoaderModule&);
 
+NT_LOADER_ERR_CODE NtLoaderLoadDynBuffer(
+    const uint8_t* target_binary /*buffer of the binary (pe img) to laod*/,
+    HMODULE target_module_handle, const NtLoaderConfiguration& config,
+    NtLoaderModule&);
+
 void* NtLoaderGetBinaryNtHeader(const NtLoaderModule& mod);
 
 void NTLoaderInvokeEntryPoint(const NtLoaderModule& mod);
+BOOL NTLoaderInvokeDllMain(const NtLoaderModule& mod, DWORD reason);
+
+FARPROC NtLoaderGetProcAddress(const NtLoaderModule& mod,
+                               const char* proc_name);
 }  // namespace loadr
