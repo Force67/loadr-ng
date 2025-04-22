@@ -94,6 +94,8 @@ NT_LOADER_ERR_CODE NtLoaderLoadDynBuffer(
     HMODULE target_module_handle, const NtLoaderConfiguration& config,
     NtLoaderModule&);
 
+uint32_t Rva2Offset(const uint8_t* buffer, uint32_t rva);
+
 void* NtLoaderGetBinaryNtHeader(const NtLoaderModule& mod);
 
 void NTLoaderInvokeEntryPoint(const NtLoaderModule& mod);

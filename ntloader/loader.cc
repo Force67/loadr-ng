@@ -3,6 +3,23 @@
 
 namespace loadr {
 
+ uint32_t Rva2Offset(const uint8_t* buffer, uint32_t rva) {
+  const IMAGE_DOS_HEADER* dos =
+      reinterpret_cast<const IMAGE_DOS_HEADER*>(buffer);
+  const IMAGE_NT_HEADERS* nt =
+      reinterpret_cast<const IMAGE_NT_HEADERS*>(buffer + dos->e_lfanew);
+
+  auto* section = IMAGE_FIRST_SECTION(nt);
+  for (int i = 0; i < nt->FileHeader.NumberOfSections; i++) {
+    if (rva >= section[i].VirtualAddress &&
+        (rva < section[i].VirtualAddress + section[i].Misc.VirtualSize)) {
+      return static_cast<uint32_t>(
+          rva - (section[i].VirtualAddress - section[i].PointerToRawData));
+    }
+  }
+  return 0;
+}
+
 namespace {
 const char* const NtLoaderErrStringArray[] = {
     "OK",                                  // OK
@@ -36,22 +53,6 @@ uint8_t* GetTargetBuffer(const NtLoaderModule& mod) {
   return (uint8_t*)mod.module_handle;
 }
 
-uint32_t Rva2Offset(const uint8_t* buffer, uint32_t rva) noexcept {
-  const IMAGE_DOS_HEADER* dos =
-      reinterpret_cast<const IMAGE_DOS_HEADER*>(buffer);
-  const IMAGE_NT_HEADERS* nt =
-      reinterpret_cast<const IMAGE_NT_HEADERS*>(buffer + dos->e_lfanew);
-
-  auto* section = IMAGE_FIRST_SECTION(nt);
-  for (int i = 0; i < nt->FileHeader.NumberOfSections; i++) {
-    if (rva >= section[i].VirtualAddress &&
-        (rva < section[i].VirtualAddress + section[i].Misc.VirtualSize)) {
-      return static_cast<uint32_t>(
-          rva - (section[i].VirtualAddress - section[i].PointerToRawData));
-    }
-  }
-  return 0;
-}
 
 auto mmin = [](uint32_t a, uint32_t b) { return a < b ? a : b; };
 
