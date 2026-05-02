@@ -2,7 +2,7 @@
 
 #include <Windows.h>
 #include <winternl.h>
-#include <cstdint>
+#include <stdint.h>
 
 namespace loadr {
 

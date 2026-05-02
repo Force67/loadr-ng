@@ -54,7 +54,9 @@ uint8_t* GetTargetBuffer(const NtLoaderModule& mod) {
 }
 
 
-auto mmin = [](uint32_t a, uint32_t b) { return a < b ? a : b; };
+static inline uint32_t mmin(uint32_t a, uint32_t b) {
+  return a < b ? a : b;
+}
 
 // Place all sections into the specified memory regions
 NT_LOADER_ERR_CODE LoadSections(NtLoaderModule& mod,

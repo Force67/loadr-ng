@@ -1,9 +1,5 @@
 #include "module_list.h"
 
-#include <sstream>
-#include <string>
-#include <vector>
-
 #include "loader.h"
 
 namespace loadr {
@@ -297,11 +293,9 @@ InternalLdrDataTableEntry* FindLdrTableEntry(PCWSTR base_name) {
                                   in_load_order_links);
     list_entry = list_entry->Flink;
 
-    auto wide_string_length = [](PCWSTR str) { return wcslen(str); };
-    auto len = wide_string_length(base_name) * sizeof(WCHAR);
+    SIZE_T len = wcslen(base_name) * sizeof(WCHAR);
     BOOL base_name_match =
-        ::RtlCompareMemory(base_name, cur_entry->base_dll_name.Buffer,
-                           wide_string_length(base_name) * sizeof(WCHAR)) ==
+        ::RtlCompareMemory(base_name, cur_entry->base_dll_name.Buffer, len) ==
         len;
 
     if (base_name_match == TRUE) {
@@ -706,8 +700,6 @@ InternalLdrDataTableEntry* FindLdrTableEntryByHandle(PVOID handle) {
 
   return nullptr;
 }
-
-#define min(a, b) ((a) < (b) ? (a) : (b))
 
 bool NtLoaderRemoveModuleFromModuleList(const NtLoaderModule* module) {
   PVOID moduleHandle = module->module_handle;

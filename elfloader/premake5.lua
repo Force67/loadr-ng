@@ -1,0 +1,10 @@
+project("elfloader")
+    language("C++")
+    kind("StaticLib")
+    files({
+        "*.cc",
+        "*.h"
+    })
+    includedirs({
+        ".",
+    })
