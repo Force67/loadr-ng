@@ -31,7 +31,9 @@ const char* const NtLoaderErrStringArray[] = {
     "Load limit exceeded",                 // LOAD_LIMIT_EXCEEDED
     "Missing import",                      // MISSING_IMPORT
     "Missing thunk",                       // MISSING_THUNK
-    "Failed to install exception handler"  // FAILED_TO_INSTALL_EH
+    "Failed to install exception handler",  // FAILED_TO_INSTALL_EH
+    "Guest has static TLS, host image has none",  // HOST_TLS_MISSING
+    "Host TLS block is smaller than the guest's"  // HOST_TLS_TOO_SMALL
 };
 
 static_assert(
@@ -239,36 +241,70 @@ NT_LOADER_ERR_CODE LoadExceptionTable(NtLoaderModule& mod,
   return NT_LOADER_ERR_CODE::OK;
 }
 
-NT_LOADER_ERR_CODE LoadTLS(NtLoaderModule& mod,
-                           const IMAGE_NT_HEADERS* apNtHeader,
-                           const IMAGE_NT_HEADERS* apSourceNt) {
-  if (apNtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_TLS]
-          .Size) {
-    IMAGE_TLS_DIRECTORY* sourceTls = reinterpret_cast<IMAGE_TLS_DIRECTORY*>(
-        GetTargetBuffer(mod) +
-        apNtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_TLS]
-            .VirtualAddress);
-    IMAGE_TLS_DIRECTORY* targetTls = reinterpret_cast<IMAGE_TLS_DIRECTORY*>(
-        GetTargetBuffer(mod) +
-        apSourceNt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_TLS]
-            .VirtualAddress);
+// The host's static TLS, read before the guest is mapped over it.
+struct HostTls {
+  uint32_t slot{0};
+  uint8_t* data{nullptr};  // the template new threads copy from
+  size_t size{0};
+};
 
-    *(DWORD*)(sourceTls->AddressOfIndex) = 0;
+// Windows allocates a TLS slot and maintains a per-thread block only for
+// images its own loader mapped. A manually mapped guest gets neither, so it
+// borrows the host's slot, which the host still owns and the loader still
+// services on every thread.
+//
+// This has to run before LoadSections: the host's TLS directory and its
+// _tls_index both live in sections the guest is about to overwrite.
+HostTls CaptureHostTls(HMODULE host_module) {
+  HostTls tls;
+  const auto* base = reinterpret_cast<const uint8_t*>(host_module);
+  const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
+  if (dos->e_magic != IMAGE_DOS_SIGNATURE) return tls;
+  const auto* nt =
+      reinterpret_cast<const IMAGE_NT_HEADERS*>(base + dos->e_lfanew);
+  const IMAGE_DATA_DIRECTORY& dir =
+      nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_TLS];
+  if (!dir.Size) return tls;
 
-    LPVOID tlsBase = *(LPVOID*)__readgsqword(0x58);
+  const auto* host_tls = reinterpret_cast<const IMAGE_TLS_DIRECTORY*>(
+      base + dir.VirtualAddress);
+  tls.slot = *reinterpret_cast<const uint32_t*>(host_tls->AddressOfIndex);
+  tls.data = reinterpret_cast<uint8_t*>(host_tls->StartAddressOfRawData);
+  tls.size = static_cast<size_t>(host_tls->EndAddressOfRawData -
+                                 host_tls->StartAddressOfRawData);
+  return tls;
+}
 
-    DWORD oldProtect;
-    VirtualProtect(
-        reinterpret_cast<LPVOID>(targetTls->StartAddressOfRawData),
-        sourceTls->EndAddressOfRawData - sourceTls->StartAddressOfRawData,
-        PAGE_READWRITE, &oldProtect);
+NT_LOADER_ERR_CODE LoadTLS(NtLoaderModule& mod, const HostTls& host,
+                           const IMAGE_NT_HEADERS* guest_nt) {
+  const IMAGE_DATA_DIRECTORY& dir =
+      guest_nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_TLS];
+  if (!dir.Size) return NT_LOADER_ERR_CODE::OK;
 
-    memcpy(tlsBase, reinterpret_cast<void*>(sourceTls->StartAddressOfRawData),
-           sourceTls->EndAddressOfRawData - sourceTls->StartAddressOfRawData);
-    memcpy((void*)targetTls->StartAddressOfRawData,
-           reinterpret_cast<void*>(sourceTls->StartAddressOfRawData),
-           sourceTls->EndAddressOfRawData - sourceTls->StartAddressOfRawData);
+  const auto* guest_tls = reinterpret_cast<const IMAGE_TLS_DIRECTORY*>(
+      GetTargetBuffer(mod) + dir.VirtualAddress);
+  const auto* guest_template =
+      reinterpret_cast<const uint8_t*>(guest_tls->StartAddressOfRawData);
+  const size_t guest_size = static_cast<size_t>(
+      guest_tls->EndAddressOfRawData - guest_tls->StartAddressOfRawData);
+
+  if (!host.data) return NT_LOADER_ERR_CODE::HOST_TLS_MISSING;
+  if (host.size < guest_size) return NT_LOADER_ERR_CODE::HOST_TLS_TOO_SMALL;
+
+  // The guest reads this on every access to a __declspec(thread) variable.
+  *reinterpret_cast<uint32_t*>(guest_tls->AddressOfIndex) = host.slot;
+
+  // Threads created from here copy the host's template.
+  DWORD old_protect;
+  if (VirtualProtect(host.data, guest_size, PAGE_READWRITE, &old_protect)) {
+    memcpy(host.data, guest_template, guest_size);
+    VirtualProtect(host.data, guest_size, old_protect, &old_protect);
   }
+
+  // Threads that already exist have their block already.
+  void** thread_slots = *reinterpret_cast<void***>(__readgsqword(0x58));
+  if (thread_slots && thread_slots[host.slot])
+    memcpy(thread_slots[host.slot], guest_template, guest_size);
 
   return NT_LOADER_ERR_CODE::OK;
 }
@@ -400,6 +436,9 @@ NT_LOADER_ERR_CODE NtLoaderLoad(const uint8_t* target_binary,
   mod.binary_buffer = target_binary;
   mod.module_handle = target_module_handle;  // The image to be overridden
 
+  // Before anything overwrites the host image.
+  const HostTls host_tls = CaptureHostTls(target_module_handle);
+
   // check if the user supplied buffer is trash
   const IMAGE_DOS_HEADER* binary_dos =
       reinterpret_cast<const IMAGE_DOS_HEADER*>(target_binary);
@@ -444,9 +483,10 @@ NT_LOADER_ERR_CODE NtLoaderLoad(const uint8_t* target_binary,
 #if defined(_M_AMD64)
   LoadExceptionTable(mod, target_nt);
 
-  // TBD
-  if (!is_dll)
-    LoadTLS(mod, binary_nt, target_nt);
+  if (!is_dll) {
+    result = LoadTLS(mod, host_tls, binary_nt);
+    if (result != NT_LOADER_ERR_CODE::OK) return result;
+  }
 #endif
 
   // Make the target address space writable (where we will write the new

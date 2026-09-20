@@ -23,6 +23,11 @@ enum class NT_LOADER_ERR_CODE {
 
   FAILED_TO_INSTALL_EH,
 
+  // The guest has static TLS and the host image has none to lend it, or too
+  // little. Give the host a __declspec(thread) array at least as large.
+  HOST_TLS_MISSING,
+  HOST_TLS_TOO_SMALL,
+
   NT_LOADER_ERR_CODE_COUNT,
 };
 const char* const NtLoaderErrCodeToString(NT_LOADER_ERR_CODE);
