@@ -2,6 +2,7 @@
 
 #include <Windows.h>
 #include <winternl.h>
+#include <limits.h>
 #include <stdint.h>
 
 namespace loadr {
@@ -22,6 +23,9 @@ enum class NT_LOADER_ERR_CODE {
   MISSING_THUNK,
 
   FAILED_TO_INSTALL_EH,
+
+  // A section could not be made writable before the guest was copied into it.
+  SECTION_NOT_WRITABLE,
 
   // The guest has static TLS and the host image has none to lend it, or too
   // little. Give the host a __declspec(thread) array at least as large.
