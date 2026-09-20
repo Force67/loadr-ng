@@ -1,6 +1,8 @@
 
 #include "loader.h"
 
+#include <stdlib.h>
+
 namespace loadr {
 
  uint32_t Rva2Offset(const uint8_t* buffer, uint32_t rva) {
@@ -32,6 +34,7 @@ const char* const NtLoaderErrStringArray[] = {
     "Missing import",                      // MISSING_IMPORT
     "Missing thunk",                       // MISSING_THUNK
     "Failed to install exception handler",  // FAILED_TO_INSTALL_EH
+    "Section could not be made writable",  // SECTION_NOT_WRITABLE
     "Guest has static TLS, host image has none",  // HOST_TLS_MISSING
     "Host TLS block is smaller than the guest's"  // HOST_TLS_TOO_SMALL
 };
@@ -78,6 +81,16 @@ NT_LOADER_ERR_CODE LoadSections(NtLoaderModule& mod,
     if (section->SizeOfRawData > 0) {
       const uint32_t data_size =
           mmin(section->SizeOfRawData, section->Misc.VirtualSize);
+
+      // The host's own pages carry the host's protections, and the first
+      // section the guest writes is usually .text over .text, which is
+      // execute-read. Open the range before writing it, not after.
+      DWORD oldProtect;
+      if (!::VirtualProtect(target_address, section->Misc.VirtualSize,
+                            PAGE_READWRITE, &oldProtect)) {
+        return NT_LOADER_ERR_CODE::SECTION_NOT_WRITABLE;
+      }
+
       ::memcpy(target_address, source_address, data_size);
 
       InvokeHook(mod, config, NT_LOADER_STAGE::LOAD_SECTION);
@@ -85,7 +98,6 @@ NT_LOADER_ERR_CODE LoadSections(NtLoaderModule& mod,
       DWORD protection_type = section->Characteristics & IMAGE_SCN_MEM_EXECUTE
                                   ? PAGE_EXECUTE_READ
                                   : PAGE_READWRITE;
-      DWORD oldProtect;
       ::VirtualProtect(target_address, section->Misc.VirtualSize,
                        protection_type, &oldProtect);
     }
@@ -301,8 +313,10 @@ NT_LOADER_ERR_CODE LoadTLS(NtLoaderModule& mod, const HostTls& host,
     VirtualProtect(host.data, guest_size, old_protect, &old_protect);
   }
 
-  // Threads that already exist have their block already.
-  void** thread_slots = *reinterpret_cast<void***>(__readgsqword(0x58));
+  // Threads that already exist have their block already. gs:[0x58] holds the
+  // TEB's ThreadLocalStoragePointer, which is the array itself, not a pointer
+  // to it.
+  void** thread_slots = reinterpret_cast<void**>(__readgsqword(0x58));
   if (thread_slots && thread_slots[host.slot])
     memcpy(thread_slots[host.slot], guest_template, guest_size);
 
@@ -481,7 +495,7 @@ NT_LOADER_ERR_CODE NtLoaderLoad(const uint8_t* target_binary,
   if (result != NT_LOADER_ERR_CODE::OK) return result;
 
 #if defined(_M_AMD64)
-  LoadExceptionTable(mod, target_nt);
+  LoadExceptionTable(mod, binary_nt);
 
   if (!is_dll) {
     result = LoadTLS(mod, host_tls, binary_nt);

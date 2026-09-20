@@ -1,5 +1,7 @@
 #include "module_list.h"
 
+#include <stddef.h>
+
 #include "loader.h"
 
 namespace loadr {
